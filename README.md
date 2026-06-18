@@ -1,8 +1,8 @@
-# Command Code VS Code Extension — Gap Analysis & Implementation Guide
+# CMD Lite VS Code Extension — Gap Analysis & Implementation Guide
 
 > [!NOTE]
-> This repository houses the unofficial, community-driven VS Code extension for [Command Code (`cmd`)](https://commandcode.ai).
-> Below is a comprehensive Gap Analysis comparing the **Official Command Code Extension** vs. **This Unofficial Extension** under the lens of Rich Hickey's Simplicity principles.
+> This repository houses the unofficial, community-driven VS Code extension for [Command Code (`cmd`)](https://commandcode.ai), branded as **CMD Lite**.
+> Below is a comprehensive Gap Analysis comparing the **Official Command Code Extension** vs. **This Unofficial Extension (CMD Lite)** under the lens of Rich Hickey's Simplicity principles.
 
 ---
 
@@ -70,10 +70,10 @@ npm i -g command-code
 > ```
 
 ### 2. Install the Extension VSIX
-You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/command-code-vscode/releases) page. Install it directly via your terminal:
+You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/cmd-lite/releases) page. Install it directly via your terminal:
 
 ```bash
-code --install-extension command-code-0.1.0.vsix
+code --install-extension cmd-lite-0.1.0.vsix
 ```
 
 ---
