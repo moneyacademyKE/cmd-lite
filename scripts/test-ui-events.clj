@@ -20,6 +20,11 @@
 (defn model-changed [model-id]
   (make-ui-event "ModelChanged" {:modelId model-id}))
 
+(defn claim-ui-lock []
+  {:type "request"
+   :id "lock-req-1"
+   :payload {:action "claimUiLock"}})
+
 (deftest ui-payload-tests
   (testing "RenderMessage event generation"
     (let [evt (render-message "msg-1" "user" "Math calculation: 1+1")]
@@ -37,7 +42,12 @@
   (testing "ModelChanged event generation"
     (let [evt (model-changed "Nex-N2-Pro")]
       (is (= "ModelChanged" (-> evt :params :type)))
-      (is (= "Nex-N2-Pro" (-> evt :params :payload :modelId))))))
+      (is (= "Nex-N2-Pro" (-> evt :params :payload :modelId)))))
+      
+  (testing "CLAIM_UI_LOCK request generation"
+    (let [evt (claim-ui-lock)]
+      (is (= "request" (:type evt)))
+      (is (= "claimUiLock" (-> evt :payload :action))))))
 
 (let [results (run-tests)]
   (when (pos? (+ (:fail results) (:error results)))

@@ -86,7 +86,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const chatProvider = new ChatViewProvider(
     context.extensionUri,
     (eventName, data) => {
-      ipcServer?.broadcastEvent(eventName, data);
+      ipcServer?.dispatchToWebviewOwner(eventName, data);
     }
   );
 

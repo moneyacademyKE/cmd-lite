@@ -92,6 +92,7 @@ export class IPCServer implements vscode.Disposable {
   private server: net.Server | null = null;
   private connections = new Set<net.Socket>();
   private webviewDispatcher?: (eventPayload: any) => void;
+  private uiLockOwner: net.Socket | null = null;
 
   constructor(
     contextProvider: ContextProvider,
@@ -120,7 +121,12 @@ export class IPCServer implements vscode.Disposable {
     this.webviewDispatcher = dispatcher;
   }
 
-  broadcastEvent(eventName: string, data: unknown): void {
+  dispatchToWebviewOwner(eventName: string, data: unknown): void {
+    if (!this.uiLockOwner) {
+      this.log(`No active UI lock owner to receive event: ${eventName}`);
+      return;
+    }
+
     const eventMessage = {
       type: "event",
       payload: {
@@ -128,9 +134,7 @@ export class IPCServer implements vscode.Disposable {
         data,
       },
     };
-    for (const socket of this.connections) {
-      this.sendMessage(socket, eventMessage as any);
-    }
+    this.sendMessage(this.uiLockOwner, eventMessage as any);
   }
 
   async start(): Promise<void> {
@@ -183,6 +187,10 @@ export class IPCServer implements vscode.Disposable {
 
     socket.on("close", () => {
       this.connections.delete(socket);
+      if (this.uiLockOwner === socket) {
+        this.log("UI lock owner disconnected. Releasing UI lock.");
+        this.uiLockOwner = null;
+      }
       clearTimeout(authTimeout);
     });
 
@@ -303,6 +311,14 @@ export class IPCServer implements vscode.Disposable {
           request.id,
           diagnostics,
         );
+        this.sendMessage(socket, response);
+        return;
+      }
+
+      if (action === IPC_ACTIONS.CLAIM_UI_LOCK) {
+        this.uiLockOwner = socket;
+        this.log("UI lock claimed by new session (Lock Stolen if already active).");
+        const response = createContextResponse(request.id, { success: true });
         this.sendMessage(socket, response);
         return;
       }

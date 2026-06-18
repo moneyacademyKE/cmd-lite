@@ -2,6 +2,7 @@ export const IPC_ACTIONS = {
   GET_CONTEXT: "getContext",
   GET_DIAGNOSTICS: "getDiagnostics",
   DISPATCH_WEBVIEW_EVENT: "dispatchWebviewEvent",
+  CLAIM_UI_LOCK: "claimUiLock",
 } as const;
 
 export const IPC_AUTH_TIMEOUT_MS = 5000;

@@ -32,3 +32,8 @@
 - The Webview acts merely as a "dumb renderer" (Thin Glass) that listens to JSON-RPC UI payloads from the central CLI source of truth.
 - The UI handles no local state mutation, strictly passing user interactions back as events to the context server.
 - This adheres to Rich Hickey's "Simple Made Easy" philosophy, reducing UI bugs and eliminating state desynchronization.
+
+## 1:1 Session Affinity (UI Lock) Pattern
+- When using UDS (Unix Domain Sockets) or shared IPC mechanisms to connect an Editor UI to external CLI agents, avoid blindly broadcasting UI events to all connected process sockets.
+- Implement an explicit "Lock Stealing" handshake where a new interactive CLI session claims ownership of the UI context via a `CLAIM_UI_LOCK` payload.
+- This ensures only one process identity communicates with the UI at a time, protecting background/parallel agents from accidentally receiving UI interactions and breaking multi-agent parallelism safely.
