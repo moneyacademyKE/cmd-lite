@@ -47,7 +47,7 @@ The analysis is conducted through the lens of Rich Hickey's "Simple Made Easy" p
 
 **Recommendation: Implement an Exclusive UI Lock (1:1 Affinity)**
 We must migrate from Broadcasting to 1:1 Affinity. 
-1. **The UI Lock Concept**: When a `cmd` CLI boots up with a `--ui` flag (or an interactive mode), it sends a specific `CLAIM_UI_LOCK` JSON-RPC request during its handshake.
+1. **The UI Lock Concept**: Whenever a `cmd` CLI boots up in standard interactive mode (no explicit `--ui` flag required), it automatically sends a specific `CLAIM_UI_LOCK` JSON-RPC request during its handshake. Background or headless modes (`--print`) will skip this step.
 2. **Server Enforcement**: The VS Code `IPCServer` grants the lock to that specific `net.Socket`. If another CLI requests the lock, it is denied (or forcibly steals it, depending on UX preference—stealing is usually better so the latest active terminal wins).
 3. **Targeted Dispatch**: `broadcastEvent` is renamed to `dispatchToWebviewOwner()`, which only writes `IpcEvent`s to the single socket holding the lock. Other headless sockets only receive background context and diagnostic responses.
 
