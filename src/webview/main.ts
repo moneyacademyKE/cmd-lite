@@ -21,23 +21,32 @@ function render() {
   if (!app) return;
 
   app.innerHTML = `
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
     <div class="header">
       <h2>Command Code Chat</h2>
       <div class="metrics">
-        <span>Tokens: ${state.tokens.total.toLocaleString()}</span>
-        <span>Model: ${state.modelId || 'None'}</span>
+        <span>TOKENS // ${state.tokens.total.toLocaleString()}</span>
+        <span>MODEL // ${state.modelId || 'None'}</span>
       </div>
     </div>
     <div class="chat-history">
       ${state.messages.map(m => `
         <div class="message message-${m.role}">
-          <strong>${m.role}:</strong> <span>${m.content}</span>
+          <span class="message-role">${m.role}</span>
+          <span>${m.content}</span>
         </div>
       `).join('')}
     </div>
     <div class="chat-input-container">
-      <textarea id="chat-input" placeholder="Type a message... (Enter to send)"></textarea>
-      <button id="send-btn">Send</button>
+      <textarea id="chat-input" placeholder="Awaiting Input..."></textarea>
+      <div class="controls">
+        <div class="qr-code"></div>
+        <button id="send-btn">Execute</button>
+      </div>
     </div>
   `;
 
