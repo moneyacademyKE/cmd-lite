@@ -333,7 +333,10 @@
       },
       {
         "name": "commandcode_getGitContext",
-        "tags": ["commandcode", "git"],
+        "tags": [
+          "commandcode",
+          "git"
+        ],
         "toolReferenceName": "getGitContext",
         "displayName": "Get Git Context",
         "modelDescription": "Retrieve the current git context for the workspace: current branch, HEAD commit hash, commit message, and list of dirty (modified/uncommitted) files. Use this to understand what the user is working on before making code changes.",
@@ -343,7 +346,10 @@
       },
       {
         "name": "commandcode_getOpenFiles",
-        "tags": ["commandcode", "editor"],
+        "tags": [
+          "commandcode",
+          "editor"
+        ],
         "toolReferenceName": "getOpenFiles",
         "displayName": "Get Open Files",
         "modelDescription": "Retrieve the list of currently open files in the editor, including file paths, languages, and which file is active. Use this to understand what the user has open before suggesting changes.",
@@ -353,7 +359,10 @@
       },
       {
         "name": "commandcode_listModels",
-        "tags": ["commandcode", "models"],
+        "tags": [
+          "commandcode",
+          "models"
+        ],
         "toolReferenceName": "listModels",
         "displayName": "List Available Models",
         "modelDescription": "List all available AI models that Command Code can use, including model IDs and provider names. Use this when the user asks about model options or wants to switch models.",
@@ -363,7 +372,10 @@
       },
       {
         "name": "commandcode_runParallel",
-        "tags": ["commandcode", "agents"],
+        "tags": [
+          "commandcode",
+          "agents"
+        ],
         "toolReferenceName": "runParallel",
         "displayName": "Run Parallel Agents",
         "modelDescription": "Run multiple Command Code agents in parallel, each with a different task. Useful for doing multiple things at once like implementing a feature while writing tests and docs. Each agent runs independently and results are merged.",
@@ -379,19 +391,45 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "label": { "type": "string", "description": "Short label for this agent (e.g. 'impl', 'tests', 'docs')" },
-                  "prompt": { "type": "string", "description": "The prompt for this specific agent" },
-                  "model": { "type": "string", "description": "Optional model override for this agent" },
-                  "planMode": { "type": "boolean", "description": "If true, this agent operates in plan mode" }
+                  "label": {
+                    "type": "string",
+                    "description": "Short label for this agent (e.g. 'impl', 'tests', 'docs')"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "The prompt for this specific agent"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Optional model override for this agent"
+                  },
+                  "planMode": {
+                    "type": "boolean",
+                    "description": "If true, this agent operates in plan mode"
+                  }
                 },
-                "required": ["label", "prompt"]
+                "required": [
+                  "label",
+                  "prompt"
+                ]
               }
             },
-            "model": { "type": "string", "description": "Default model for all agents" },
-            "maxTurns": { "type": "number", "description": "Max turns per agent" },
-            "planMode": { "type": "boolean", "description": "Default plan mode for all agents" }
+            "model": {
+              "type": "string",
+              "description": "Default model for all agents"
+            },
+            "maxTurns": {
+              "type": "number",
+              "description": "Max turns per agent"
+            },
+            "planMode": {
+              "type": "boolean",
+              "description": "Default plan mode for all agents"
+            }
           },
-          "required": ["tasks"]
+          "required": [
+            "tasks"
+          ]
         }
       }
     ],
@@ -441,11 +479,11 @@
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^2.22.0",
-    "esbuild": "^0.21.0",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/parser": "^7.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^8.57.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.9"
   }

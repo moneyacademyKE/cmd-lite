@@ -56,3 +56,7 @@ To install and run this extension:
 - **Session History Mapping**: Session history is parsed directly from `~/.commandcode/projects/{slug}/{uuid}.jsonl` metadata files, translating CLI execution logs into interactive sidebar components.
 - **Headless Execution Authorization**: When executing `cmd` non-interactively via background processes or command runners (e.g., `-p` print mode), the `--yolo` flag (alias for `--dangerously-skip-permissions`) is required to authorize filesystem modification tools; otherwise, the agent is restricted by security sandbox defaults and halts.
 - **Version Control Safety**: Initializing local Git tracking in the target workspace allows the agent to safely compute diff boundaries, run testing iterations, and roll back unintended modifications during automated execution loops.
+
+## CI Dependency Resolution & Platform Binaries
+- **Esbuild Platform Optional Dependencies**: When compiling extensions or web applications that use tools relying on platform-specific binaries (such as `esbuild`, `vite`, or `vitest`), version discrepancies between root devDependencies (e.g. `esbuild@^0.21.0`) and transitive dependencies of other tools (e.g. `vite@8` requesting `esbuild@^0.28.0`) can cause `npm ci` failures on CI runners with errors like `Missing: @esbuild/linux-x64@0.28.1 from lock file`. Aligning top-level devDependencies to match the versions requested by downstream tools allows `npm install` to correctly generate and lock platform-specific binaries for all target operating systems and architectures in the `package-lock.json`.
+
