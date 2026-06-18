@@ -91,6 +91,7 @@ export class IPCServer implements vscode.Disposable {
   private readonly outputChannel: vscode.OutputChannel;
   private server: net.Server | null = null;
   private connections = new Set<net.Socket>();
+  private webviewDispatcher?: (eventPayload: any) => void;
 
   constructor(
     contextProvider: ContextProvider,
@@ -113,6 +114,23 @@ export class IPCServer implements vscode.Disposable {
     this.outputChannel.appendLine(
       `[${timestamp}] ${message}`,
     );
+  }
+
+  setWebviewDispatcher(dispatcher: (eventPayload: any) => void): void {
+    this.webviewDispatcher = dispatcher;
+  }
+
+  broadcastEvent(eventName: string, data: unknown): void {
+    const eventMessage = {
+      type: "event",
+      payload: {
+        event: eventName,
+        data,
+      },
+    };
+    for (const socket of this.connections) {
+      this.sendMessage(socket, eventMessage as any);
+    }
   }
 
   async start(): Promise<void> {
@@ -285,6 +303,15 @@ export class IPCServer implements vscode.Disposable {
           request.id,
           diagnostics,
         );
+        this.sendMessage(socket, response);
+        return;
+      }
+
+      if (action === IPC_ACTIONS.DISPATCH_WEBVIEW_EVENT) {
+        if (this.webviewDispatcher) {
+          this.webviewDispatcher(request.payload.eventPayload);
+        }
+        const response = createContextResponse(request.id, { success: true });
         this.sendMessage(socket, response);
         return;
       }

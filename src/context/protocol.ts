@@ -1,6 +1,7 @@
 export const IPC_ACTIONS = {
   GET_CONTEXT: "getContext",
   GET_DIAGNOSTICS: "getDiagnostics",
+  DISPATCH_WEBVIEW_EVENT: "dispatchWebviewEvent",
 } as const;
 
 export const IPC_AUTH_TIMEOUT_MS = 5000;
@@ -28,6 +29,7 @@ export interface IpcRequest {
   payload: {
     action: string;
     filePaths?: string[];
+    eventPayload?: any;
   };
 }
 
@@ -46,7 +48,15 @@ export interface IpcError {
   };
 }
 
-export type IpcMessage = IpcRequest | IpcResponse | IpcError;
+export interface IpcEvent {
+  type: "event";
+  payload: {
+    event: string;
+    data: unknown;
+  };
+}
+
+export type IpcMessage = IpcRequest | IpcResponse | IpcError | IpcEvent;
 
 export const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 export const MAX_MESSAGE_BYTES = 4 * 1024 * 1024;

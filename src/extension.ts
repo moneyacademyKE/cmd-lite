@@ -83,6 +83,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const tasteProvider = new TasteTreeProvider(getActiveCwd());
   const sessionProvider = new SessionTreeProvider();
 
+  const chatProvider = new ChatViewProvider(
+    context.extensionUri,
+    (eventName, data) => {
+      ipcServer?.broadcastEvent(eventName, data);
+    }
+  );
+
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider(
       "commandcode.tasteView",
@@ -94,7 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.window.registerWebviewViewProvider(
       ChatViewProvider.viewType,
-      new ChatViewProvider(context.extensionUri)
+      chatProvider
     ),
   );
 
@@ -193,6 +200,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const contextProvider = new ContextProvider();
   ipcServer = new IPCServer(contextProvider, socketPath, authToken);
+  
+  ipcServer.setWebviewDispatcher((eventPayload) => {
+    chatProvider.dispatchEvent(eventPayload);
+  });
 
   ipcServer.start()
     .then(() => {

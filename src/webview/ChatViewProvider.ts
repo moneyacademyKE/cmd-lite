@@ -6,7 +6,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private _view?: vscode.WebviewView;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _onEvent?: (eventName: string, data: unknown) => void
+  ) {}
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -24,17 +27,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage((message) => {
       // "Thin Glass": We simply pass interactions back to the CLI context server or event bus.
-      // For now, log them.
-      console.log('Received message from webview:', message);
-      
-      switch (message.type) {
-        case 'chatInput':
-          // Here we would route the prompt to the CLI
-          vscode.window.showInformationMessage(`User typed: ${message.payload.prompt}`);
-          break;
-        case 'modelSelected':
-          // Here we would route the selection to the CLI
-          break;
+      if (this._onEvent) {
+        this._onEvent('webview_interaction', message);
+      } else {
+        console.log('Received message from webview (unhandled):', message);
       }
     });
   }
