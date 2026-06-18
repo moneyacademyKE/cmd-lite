@@ -34,6 +34,30 @@ code --install-extension command-code-0.1.0.vsix
 
 ## Features
 
+### IPC Context Server (Background UDS)
+- **Unix Domain Socket (UDS)** server that shares real-time workspace context with the `cmd` CLI.
+- **Token Handshake Auth**: Secured with atomic UUID token validation and process-isolated access permissions.
+- **Rich Editor Context**: Debounced editor selection sharing, active file status, and open tabs group tracking.
+- **Git Context Relay**: Real-time git branch name, HEAD commit hash, commit message, and list of modified/untracked files.
+- **Diagnostics Reporting**: Groups compiler errors, warnings, and lint messages by file to provide high-fidelity error contexts.
+
+### Language Model Tools (Copilot / Agent Integration)
+- Declares 6 native tools to let VS Code Chat and other agents invoke Command Code capabilities:
+  - `commandcode_runPrint`: Run CLI prompts.
+  - `commandcode_getTaste`: Get learned project coding preferences.
+  - `commandcode_getDiagnostics`: Get editor error/warning diagnostics.
+  - `commandcode_getGitContext`: Read git status and branch information.
+  - `commandcode_getOpenFiles`: List currently open documents.
+  - `commandcode_listModels`: Enumerate supported AI models.
+  - `commandcode_runParallel`: Coordinate concurrent subtasks.
+
+### Parallel Agent Orchestration
+- Spawns multiple `cmd --headless` processes concurrently (e.g. implementation, tests, docs) to run independent tasks.
+- Aggregates outputs, manages synchronization, and formats execution summaries in a dedicated output channel.
+
+### Inline Diff Previews
+- Automatically extracts diffs from the CLI generator's output stream and presents them in a side-by-side native VS Code comparison view (`vscode.diff()`).
+
 ### Chat participant (`@cmd`)
 - Streaming responses through `cmd -p` with progress indicators
 - Slash-style commands: `plan`, `review`, `taste`, `learn`
@@ -58,6 +82,8 @@ code --install-extension command-code-0.1.0.vsix
 - `Command Code: Learn Taste From Current Folder`
 - `Command Code: Open Taste Profile on commandcode.ai`
 - `Command Code: Show Status` / `Show System Info` / `Login` / `Logout` / `Update`
+- `Command Code: Run Parallel Agents` — run impl, tests, and docs concurrently
+- `Command Code: Show Diff` — view the proposed code changes side-by-side
 
 ### Status bar
 - `cmd · standard · claude-opus-4.8` — click to switch permission mode.
@@ -89,7 +115,7 @@ Status Bar       ─┘                                  │
 
 ## Why not a fork?
 
-See `~/.commandcode/plans/vscode-plugin-or-fork-gap-analysis.md` for the full analysis. Short version: even Anthropic ships a wrapper extension, not a fork, for Claude Code. The CLI is the product. The editor is a frontend.
+See [VS Code Plugin vs. Fork — Gap Analysis](docs/vscode-plugin-or-fork-gap-analysis.md) for the full analysis. Short version: even Anthropic ships a wrapper extension, not a fork, for Claude Code. The CLI is the product. The editor is a frontend.
 
 ## Development
 

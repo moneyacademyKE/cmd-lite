@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 import {
   openTaste,
@@ -13,12 +14,13 @@ import type { TasteTreeProvider } from "./tasteView";
 export function registerTasteCommands(
   context: vscode.ExtensionContext,
   provider: TasteTreeProvider,
+  outputChannel: vscode.OutputChannel,
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("commandcode.taste.openFile", async () => {
       const cwd = getActiveCwd();
       const filePath = vscode.Uri.file(
-        require("node:path").join(cwd, ".commandcode", "taste", "taste.md"),
+        path.join(cwd, ".commandcode", "taste", "taste.md"),
       );
       try {
         await vscode.window.showTextDocument(filePath);
@@ -38,7 +40,7 @@ export function registerTasteCommands(
         cwd: getActiveCwd(),
         package: packageName?.trim() || undefined,
       });
-      showResult("Push taste", result.stdout, result.stderr);
+      showResult("Push taste", result.stdout, result.stderr, outputChannel);
       provider.refresh();
     }),
 
@@ -49,7 +51,7 @@ export function registerTasteCommands(
       });
       if (!packageName) return;
       const result = await tastePull({ cwd: getActiveCwd(), package: packageName.trim() });
-      showResult("Pull taste", result.stdout, result.stderr);
+      showResult("Pull taste", result.stdout, result.stderr, outputChannel);
       provider.refresh();
     }),
 
@@ -71,7 +73,7 @@ export function registerTasteCommands(
 
     vscode.commands.registerCommand("commandcode.taste.lint", async () => {
       const result = await tasteLint(undefined, getActiveCwd());
-      showResult("Lint taste", result.stdout, result.stderr);
+      showResult("Lint taste", result.stdout, result.stderr, outputChannel);
     }),
 
     vscode.commands.registerCommand("commandcode.taste.learnHere", async () => {
@@ -83,7 +85,7 @@ export function registerTasteCommands(
       });
       if (!source) return;
       const result = await tasteLearn(source.trim(), cwd);
-      showResult("Learn taste", result.stdout, result.stderr);
+      showResult("Learn taste", result.stdout, result.stderr, outputChannel);
       provider.refresh();
     }),
 
@@ -93,9 +95,9 @@ export function registerTasteCommands(
   );
 }
 
-function showResult(title: string, stdout: string, stderr: string): void {
+function showResult(title: string, stdout: string, stderr: string, channel: vscode.OutputChannel): void {
   const output = (stdout || stderr || "_(no output)_").trim();
-  const channel = vscode.window.createOutputChannel("Command Code");
+  channel.clear();
   channel.appendLine(`## ${title}`);
   channel.appendLine(output);
   channel.show(true);

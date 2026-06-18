@@ -41,3 +41,12 @@ To install and run this extension:
   - To resume a specific session by ID or name: `cmd -r [name]`
   - To exit a running CLI session: type `/exit` in the terminal, or send a termination signal (e.g. `kill <pid>`).
 
+## Package Manager and Version Conflicts
+- **Problem**: When both `npm` and `yarn` are configured globally, `cmd update` might update the NPM package, but the active system binary in `/opt/homebrew/bin/cmd` might point to Yarn's global path (e.g. `/Users/moe/.config/yarn/global/node_modules/.bin/cmd`), leaving the executable stuck on the older version (e.g. `0.38.2`).
+- **Solution**: To correctly update the CLI to the latest version in this setup, run:
+  ```bash
+  yarn global add command-code@latest
+  ```
+- Refer to [gap-analysis.md](file:///Users/moe/Desktop/cmd/docs/gap-analysis.md) for a comprehensive feature breakdown of `v0.39.0`.
+
+

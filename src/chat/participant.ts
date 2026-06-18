@@ -3,6 +3,7 @@ import { runPrint } from "../cli/commands";
 import type { PermissionMode } from "../cli/types";
 import { getActiveCwd, getEffectivePermissionMode, getEffectiveModel, getEffectiveMaxTurns } from "../config";
 import { markdownFromCli } from "./format";
+import { hasCodeProposal } from "../diff/preview";
 
 interface ParticipantState {
   permissionMode: PermissionMode;
@@ -11,6 +12,8 @@ interface ParticipantState {
 }
 
 export function registerChatParticipant(context: vscode.ExtensionContext): void {
+  loadPersistedState(context);
+
   const participant = vscode.chat.createChatParticipant(
     "commandcode.chat",
     async (
@@ -51,22 +54,54 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
             `\n\n<details><summary>stderr (exit ${result.exitCode})</summary>\n\n\`\`\`\n${escape(result.stderr.trim())}\n\`\`\`\n</details>\n`,
           );
         }
+
+        if (hasCodeProposal(result.stdout)) {
+          stream.button({
+            command: "commandcode.diff.show",
+            title: "📊 Show Diff",
+            arguments: [result.stdout],
+          });
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         stream.markdown(`\n\n**Error:** ${escape(message)}\n`);
       }
 
       updateState(state);
+      persistState(context);
+      return { metadata: { command, planMode: state.planMode } } satisfies vscode.ChatResult;
     },
   );
 
   participant.iconPath = vscode.Uri.joinPath(context.extensionUri, "assets", "icon.png");
   participant.followupProvider = {
     provideFollowups(
-      _result: vscode.ChatResult,
+      result: vscode.ChatResult,
       _context: vscode.ChatContext,
       _token: vscode.CancellationToken,
     ): vscode.ProviderResult<vscode.ChatFollowup[]> {
+      const metadata = result.metadata as { command?: string; planMode?: boolean } | undefined;
+      if (metadata?.command === "plan" || metadata?.planMode) {
+        return [
+          { prompt: "Start implementing the plan", label: "Implement" },
+          { prompt: "Refine the plan with more detail", label: "Refine" },
+          { prompt: "Split the plan into smaller steps", label: "Split" },
+        ];
+      }
+      if (metadata?.command === "review") {
+        return [
+          { prompt: "Apply the suggested fix", label: "Apply fix" },
+          { prompt: "Explain the issue in more detail", label: "Explain more" },
+          { prompt: "Check for similar issues elsewhere", label: "Check elsewhere" },
+        ];
+      }
+      if (metadata?.command === "taste") {
+        return [
+          { prompt: "Apply the taste to the current file", label: "Apply taste" },
+          { prompt: "Show me the raw taste file", label: "Show taste" },
+          { prompt: "Learn more taste from other repositories", label: "Learn more" },
+        ];
+      }
       return [
         { prompt: "Show me the taste learned so far", label: "Show taste" },
         { prompt: "Plan the next change", label: "Plan next" },
@@ -88,6 +123,17 @@ function updateState(next: ParticipantState): void {
 }
 
 let currentSessionState: ParticipantState | undefined;
+
+function persistState(context: vscode.ExtensionContext): void {
+  context.globalState.update("commandcode.participantState", currentSessionState);
+}
+
+function loadPersistedState(context: vscode.ExtensionContext): void {
+  const stored = context.globalState.get<ParticipantState>("commandcode.participantState");
+  if (stored) {
+    currentSessionState = stored;
+  }
+}
 
 export function setParticipantPermissionMode(mode: PermissionMode): void {
   const state = readState();

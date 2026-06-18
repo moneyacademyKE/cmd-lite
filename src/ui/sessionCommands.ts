@@ -1,14 +1,15 @@
 import * as vscode from "vscode";
 import {
+  getInfo,
   getStatus,
-  login,
   logout,
   runPrint,
-  startSession,
   updateCli,
   whoami,
 } from "../cli/commands";
 import { getActiveCwd } from "../config";
+import { resolveCliPath } from "../cli/resolve";
+import { startInteractiveSession } from "../permission/interactive";
 import type { StatusBar } from "./statusBar";
 import type { SessionTreeProvider } from "./sessionView";
 
@@ -16,26 +17,19 @@ export function registerSessionCommands(
   context: vscode.ExtensionContext,
   statusBar: StatusBar,
   sessionTree: SessionTreeProvider,
+  outputChannel: vscode.OutputChannel,
 ): void {
+  const extUri = context.extensionUri;
+
   context.subscriptions.push(
-    vscode.commands.registerCommand("commandcode.start", async () => {
+    vscode.commands.registerCommand("commandcode.start", () => {
       const cwd = getActiveCwd();
-      statusBar.setBusy(true);
-      try {
-        await startSession({ cwd, trust: true });
-      } finally {
-        statusBar.setBusy(false);
-      }
+      startInteractiveSession(extUri, { cwd, trust: true });
     }),
 
-    vscode.commands.registerCommand("commandcode.continue", async () => {
+    vscode.commands.registerCommand("commandcode.continue", () => {
       const cwd = getActiveCwd();
-      statusBar.setBusy(true);
-      try {
-        await startSession({ cwd, continueLast: true });
-      } finally {
-        statusBar.setBusy(false);
-      }
+      startInteractiveSession(extUri, { cwd, continueLast: true, trust: true });
     }),
 
     vscode.commands.registerCommand("commandcode.resume", async () => {
@@ -44,11 +38,12 @@ export function registerSessionCommands(
         prompt: "Resume which session?",
         placeHolder: "session name or id (blank to pick from history)",
       });
-      statusBar.setBusy(true);
-      try {
-        await startSession({ cwd, resume: name?.trim() || undefined });
-      } finally {
-        statusBar.setBusy(false);
+      if (name !== undefined) {
+        startInteractiveSession(extUri, {
+          cwd,
+          resume: name.trim() || undefined,
+          trust: true,
+        });
       }
     }),
 
@@ -61,11 +56,11 @@ export function registerSessionCommands(
       if (!prompt) return;
       statusBar.setBusy(true);
       try {
-        const channel = vscode.window.createOutputChannel("Command Code");
-        channel.show(true);
+        outputChannel.clear();
+        outputChannel.show(true);
         const result = await runPrint(prompt, { cwd });
-        channel.appendLine(result.stdout);
-        if (result.stderr.trim()) channel.appendLine(result.stderr);
+        outputChannel.appendLine(result.stdout);
+        if (result.stderr.trim()) outputChannel.appendLine(result.stderr);
       } finally {
         statusBar.setBusy(false);
       }
@@ -105,10 +100,10 @@ export function registerSessionCommands(
         : "Review current changes on this branch";
       statusBar.setBusy(true);
       try {
-        const channel = vscode.window.createOutputChannel("Command Code");
-        channel.show(true);
+        outputChannel.clear();
+        outputChannel.show(true);
         const result = await runPrint(prompt, { cwd });
-        channel.appendLine(result.stdout);
+        outputChannel.appendLine(result.stdout);
       } finally {
         statusBar.setBusy(false);
       }
@@ -116,26 +111,27 @@ export function registerSessionCommands(
 
     vscode.commands.registerCommand("commandcode.status", async () => {
       const text = await getStatus(getActiveCwd());
-      const channel = vscode.window.createOutputChannel("Command Code");
-      channel.clear();
-      channel.appendLine(text);
-      channel.show(true);
+      outputChannel.clear();
+      outputChannel.appendLine(text);
+      outputChannel.show(true);
     }),
 
     vscode.commands.registerCommand("commandcode.info", async () => {
       const cwd = getActiveCwd();
-      const text = await (await import("../cli/commands")).getInfo(cwd);
+      const text = await getInfo(cwd);
       vscode.window.showInformationMessage(text.split(/\r?\n/).slice(0, 6).join(" | "));
     }),
 
-    vscode.commands.registerCommand("commandcode.login", async () => {
-      statusBar.setBusy(true);
-      try {
-        await login(getActiveCwd());
-        sessionTree.refresh();
-      } finally {
-        statusBar.setBusy(false);
-      }
+    vscode.commands.registerCommand("commandcode.login", () => {
+      const cwd = getActiveCwd();
+      const cliPath = resolveCliPath();
+      const terminal = vscode.window.createTerminal({
+        name: "Command Code",
+        cwd,
+      });
+      terminal.sendText(`${cliPath} login`);
+      terminal.show();
+      sessionTree.refresh();
     }),
 
     vscode.commands.registerCommand("commandcode.logout", async () => {

@@ -7,34 +7,6 @@ import {
   getEffectivePermissionMode,
 } from "../config";
 
-export interface HeadlessRequest {
-  prompt: string;
-  plan?: boolean;
-  model?: string;
-}
-
-export async function runHeadlessTask(request: HeadlessRequest): Promise<void> {
-  const cwd = getActiveCwd();
-  const channel = vscode.window.createOutputChannel("Command Code (headless)");
-  channel.show(true);
-  channel.appendLine(`> cmd -p ${JSON.stringify(request.prompt)}`);
-
-  const result = await runPrint(request.prompt, {
-    cwd,
-    model: request.model ?? getEffectiveModel(),
-    maxTurns: getEffectiveMaxTurns(),
-    permissionMode: getEffectivePermissionMode(),
-    plan: request.plan,
-    onStdoutChunk: (chunk) => channel.append(chunk),
-  });
-
-  channel.appendLine("");
-  channel.appendLine(`--- exit ${result.exitCode} in ${result.durationMs}ms ---`);
-  if (result.stderr.trim()) {
-    channel.appendLine(result.stderr);
-  }
-}
-
 export function defineHeadlessTask(): vscode.Task {
   const task = new vscode.Task(
     { type: "commandcode", task: "headless" },

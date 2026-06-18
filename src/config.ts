@@ -32,6 +32,12 @@ export function showStatusBarEnabled(): boolean {
 }
 
 export function getActiveCwd(): string {
+  const activeEditor = vscode.window.activeTextEditor;
+  if (activeEditor) {
+    const docUri = activeEditor.document.uri;
+    const folder = vscode.workspace.getWorkspaceFolder(docUri);
+    if (folder) return folder.uri.fsPath;
+  }
   const folders = vscode.workspace.workspaceFolders;
   if (folders && folders.length > 0) {
     return folders[0].uri.fsPath;

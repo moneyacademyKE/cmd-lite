@@ -24,6 +24,10 @@ export interface StartSessionOptions {
 export async function startSession(
   options: StartSessionOptions,
 ): Promise<CliResult> {
+  return runInteractive(buildSessionArgs(options), { cwd: options.cwd });
+}
+
+export function buildSessionArgs(options: StartSessionOptions): string[] {
   const args: string[] = [];
   if (options.continueLast) args.push("-c");
   if (options.resume) args.push("-r", options.resume);
@@ -40,8 +44,7 @@ export async function startSession(
     for (const dir of options.addDirs) args.push("--add-dir", dir);
   }
   if (options.prompt) args.push(options.prompt);
-
-  return runInteractive(args, { cwd: options.cwd });
+  return args;
 }
 
 export async function runPrint(
@@ -193,7 +196,7 @@ function parseModelList(raw: string): ModelInfo[] {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (/^[A-Za-z][\w &/.-]{0,40}$/.test(trimmed) && !/[\/]/.test(trimmed)) {
+    if (/^[A-Za-z][\w &/.-]{0,40}$/.test(trimmed) && !/[/]/.test(trimmed)) {
       const knownHeaders = [
         "Open Source",
         "Anthropic",

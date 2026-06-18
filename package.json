@@ -53,8 +53,7 @@
           {
             "name": "taste",
             "description": "Inspect or apply taste"
-          }
-          ,
+          },
           {
             "name": "learn",
             "description": "Learn taste from a repository"
@@ -192,6 +191,21 @@
         "command": "commandcode.update",
         "title": "Update Command Code CLI",
         "category": "Command Code"
+      },
+      {
+        "command": "commandcode.whoami",
+        "title": "Show Current User",
+        "category": "Command Code"
+      },
+      {
+        "command": "commandcode.diff.show",
+        "title": "Show Diff",
+        "category": "Command Code"
+      },
+      {
+        "command": "commandcode.agents.parallel",
+        "title": "Run Parallel Agents",
+        "category": "Command Code"
       }
     ],
     "configuration": {
@@ -209,7 +223,11 @@
         },
         "commandcode.defaultPermissionMode": {
           "type": "string",
-          "enum": ["standard", "plan", "auto-accept"],
+          "enum": [
+            "standard",
+            "plan",
+            "auto-accept"
+          ],
           "default": "standard",
           "description": "Permission mode for new sessions."
         },
@@ -222,9 +240,161 @@
           "type": "boolean",
           "default": true,
           "description": "Show the session indicator in the status bar."
+        },
+        "commandcode.context.maxSelectionLength": {
+          "type": "number",
+          "default": 10000,
+          "description": "Maximum characters of selected text to share with the CLI via the context server. Larger values mean more context for the AI but may slow down IPC."
         }
       }
     },
+    "languageModelTools": [
+      {
+        "name": "commandcode_runPrint",
+        "tags": [
+          "commandcode",
+          "ai",
+          "coding"
+        ],
+        "toolReferenceName": "runPrint",
+        "displayName": "Run Command Code",
+        "modelDescription": "Run Command Code (cmd) with a given prompt. Command Code is an AI coding agent with taste. It can write code, fix bugs, refactor, run tests, and more. Use this tool when the user asks to make code changes, fix issues, or implement features. Returns the output from the coding agent.",
+        "userDescription": "Run Command Code coding agent with a prompt",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(circuit-board)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "The prompt to send to Command Code. Be specific about what code changes are needed, which files to modify, and the expected outcome."
+            },
+            "model": {
+              "type": "string",
+              "description": "Optional model to use (e.g. claude-opus-4.8, deepseek-v4-pro). Leave empty to use the default."
+            },
+            "maxTurns": {
+              "type": "number",
+              "description": "Maximum conversation turns (default: 10)."
+            },
+            "plan": {
+              "type": "boolean",
+              "description": "If true, Command Code operates in plan mode and does NOT modify files, only proposes a plan."
+            }
+          },
+          "required": [
+            "prompt"
+          ]
+        }
+      },
+      {
+        "name": "commandcode_getTaste",
+        "tags": [
+          "commandcode",
+          "taste"
+        ],
+        "toolReferenceName": "getTaste",
+        "displayName": "Get Taste",
+        "modelDescription": "Retrieve the learned coding taste/preferences for the current project from .commandcode/taste/taste.md. Taste includes coding conventions, style preferences, technology choices, and patterns specific to this project. Use this before making code changes to ensure the output matches the project's conventions.",
+        "userDescription": "Get learned project coding taste",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(book)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cwd": {
+              "type": "string",
+              "description": "Optional working directory. Defaults to the active workspace folder."
+            }
+          }
+        }
+      },
+      {
+        "name": "commandcode_getDiagnostics",
+        "tags": [
+          "commandcode",
+          "diagnostics"
+        ],
+        "toolReferenceName": "getDiagnostics",
+        "displayName": "Get Diagnostics",
+        "modelDescription": "Retrieve VS Code diagnostics (errors, warnings, hints) for open files. Useful for understanding current problems in the codebase before making changes. Returns diagnostics grouped by file with severity, line number, and message.",
+        "userDescription": "Get VS Code diagnostics for current files",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(warning)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Optional specific file path to get diagnostics for. If omitted, returns diagnostics for all open files."
+            }
+          }
+        }
+      },
+      {
+        "name": "commandcode_getGitContext",
+        "tags": ["commandcode", "git"],
+        "toolReferenceName": "getGitContext",
+        "displayName": "Get Git Context",
+        "modelDescription": "Retrieve the current git context for the workspace: current branch, HEAD commit hash, commit message, and list of dirty (modified/uncommitted) files. Use this to understand what the user is working on before making code changes.",
+        "userDescription": "Get current git status and branch info",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(git-branch)"
+      },
+      {
+        "name": "commandcode_getOpenFiles",
+        "tags": ["commandcode", "editor"],
+        "toolReferenceName": "getOpenFiles",
+        "displayName": "Get Open Files",
+        "modelDescription": "Retrieve the list of currently open files in the editor, including file paths, languages, and which file is active. Use this to understand what the user has open before suggesting changes.",
+        "userDescription": "Get list of open editor files",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(files)"
+      },
+      {
+        "name": "commandcode_listModels",
+        "tags": ["commandcode", "models"],
+        "toolReferenceName": "listModels",
+        "displayName": "List Available Models",
+        "modelDescription": "List all available AI models that Command Code can use, including model IDs and provider names. Use this when the user asks about model options or wants to switch models.",
+        "userDescription": "List available AI models for Command Code",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "name": "commandcode_runParallel",
+        "tags": ["commandcode", "agents"],
+        "toolReferenceName": "runParallel",
+        "displayName": "Run Parallel Agents",
+        "modelDescription": "Run multiple Command Code agents in parallel, each with a different task. Useful for doing multiple things at once like implementing a feature while writing tests and docs. Each agent runs independently and results are merged.",
+        "userDescription": "Run multiple Command Code agents in parallel",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(multiple-windows)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tasks": {
+              "type": "array",
+              "description": "Array of tasks. Each task has a label and prompt.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": { "type": "string", "description": "Short label for this agent (e.g. 'impl', 'tests', 'docs')" },
+                  "prompt": { "type": "string", "description": "The prompt for this specific agent" },
+                  "model": { "type": "string", "description": "Optional model override for this agent" },
+                  "planMode": { "type": "boolean", "description": "If true, this agent operates in plan mode" }
+                },
+                "required": ["label", "prompt"]
+              }
+            },
+            "model": { "type": "string", "description": "Default model for all agents" },
+            "maxTurns": { "type": "number", "description": "Max turns per agent" },
+            "planMode": { "type": "boolean", "description": "Default plan mode for all agents" }
+          },
+          "required": ["tasks"]
+        }
+      }
+    ],
     "menus": {
       "editor/context": [
         {
@@ -239,20 +409,44 @@
           "group": "commandcode"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "commandcode.start",
+        "key": "ctrl+shift+`",
+        "mac": "cmd+shift+`"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "commandcode",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The task to run (headless)"
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "package": "vsce package --no-dependencies",
     "lint": "eslint src --ext .ts"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^20.19.43",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.21.0",
-    "typescript": "^5.4.0"
+    "eslint": "^8.57.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.9"
   }
 }
