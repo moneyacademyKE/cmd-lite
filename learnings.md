@@ -60,3 +60,7 @@ To install and run this extension:
 ## CI Dependency Resolution & Platform Binaries
 - **Esbuild Platform Optional Dependencies**: When compiling extensions or web applications that use tools relying on platform-specific binaries (such as `esbuild`, `vite`, or `vitest`), version discrepancies between root devDependencies (e.g. `esbuild@^0.21.0`) and transitive dependencies of other tools (e.g. `vite@8` requesting `esbuild@^0.28.0`) can cause `npm ci` failures on CI runners with errors like `Missing: @esbuild/linux-x64@0.28.1 from lock file`. Aligning top-level devDependencies to match the versions requested by downstream tools allows `npm install` to correctly generate and lock platform-specific binaries for all target operating systems and architectures in the `package-lock.json`.
 
+## Rebranding and Namespace Decoupling (v0.1.0)
+- **Marketplace Isolation**: To prevent conflicts with the official extension, the package name is renamed to `cmd-lite` under display name `CMD Lite` and publisher `moneyacademyke`.
+- **Namespace Consistency**: Internal settings namespaces, custom commands, and socket paths remain configured under the legacy `commandcode` namespace (e.g. `commandcode.cliPath`) to maintain compatibility with the global `cmd` CLI, keeping editor metadata changes decoupled from execution compatibility.
+

@@ -1,13 +1,13 @@
 {
-  "name": "command-code",
-  "displayName": "Command Code",
+  "name": "cmd-lite",
+  "displayName": "CMD Lite",
   "description": "A coding agent with taste. Wrap the Command Code (`cmd`) CLI as a native VS Code experience.",
   "version": "0.1.0",
-  "publisher": "commandcode",
+  "publisher": "moneyacademyke",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/CommandCodeAI/command-code-vscode"
+    "url": "https://github.com/moneyacademyKE/command-code-vscode"
   },
   "engines": {
     "vscode": "^1.85.0"
