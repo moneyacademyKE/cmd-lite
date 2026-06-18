@@ -56,10 +56,13 @@ function initUI() {
 
   const sendMessage = () => {
     if (input.value.trim()) {
+      const prompt = input.value;
       vscode.postMessage({
         type: 'chatInput',
-        payload: { prompt: input.value }
+        payload: { prompt }
       });
+      // Optimistically update the UI so the execute button feels responsive
+      appendMessage({ id: 'local-' + Date.now(), role: 'user', content: prompt });
       input.value = '';
     }
   };
