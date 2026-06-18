@@ -45,3 +45,7 @@
 ### Implicit Lock Inference
 - **Context**: Enforcing strict IPC handshakes (e.g., `CLAIM_UI_LOCK`) can break older client binaries that don't know the new protocol.
 - **Solution**: If a client actively dispatches a highly specific event (like `DISPATCH_WEBVIEW_EVENT`), logically it *must* be the interactive session. Implicitly grant the lock to that client to ensure backwards compatibility while maintaining strict 1:1 affinity.
+
+### Defensive Architecture: Framework Rejection Pattern
+- **Context**: When building stateless, targeted Webview UIs (like "Thin Glass" patterns), developers often propose migrating to complex frontend frameworks (e.g., SolidJS, React) or Web Worker proxies (e.g., Partytown) preemptively.
+- **Solution**: Subject all adoptions to a Rich Hickey Gap Analysis. If the architecture adds massive incidental complexity (e.g., JSX compilation, CSP proxying) to solve problems that don't exist in the current domain (e.g., 3rd-party script blocking, vast local UI state), decisively reject the adoption. Protect the zero-dependency baseline.
