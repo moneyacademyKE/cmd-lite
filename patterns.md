@@ -27,3 +27,8 @@
 - When utilizing build tools or bundlers (e.g. `esbuild`) that require platform-specific native binaries (e.g., `@esbuild/linux-x64` for Linux runners, and `@esbuild/darwin-arm64` for macOS local development), align the top-level package version of the tool in `devDependencies` with transitive dependencies brought in by test runners or bundlers (e.g., `vitest` / `vite`).
 - This alignment ensures that `npm install` records the matching versions and files for all possible platforms in `package-lock.json`, preventing `npm ci` failures due to missing platform-specific packages on CI runners.
 
+## Thin Glass UI Pattern
+- When adding complex frontend UIs (like Kilo Code-style chat panels) to a CLI wrapper extension, avoid state entanglement.
+- The Webview acts merely as a "dumb renderer" (Thin Glass) that listens to JSON-RPC UI payloads from the central CLI source of truth.
+- The UI handles no local state mutation, strictly passing user interactions back as events to the context server.
+- This adheres to Rich Hickey's "Simple Made Easy" philosophy, reducing UI bugs and eliminating state desynchronization.

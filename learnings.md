@@ -64,3 +64,7 @@ To install and run this extension:
 - **Marketplace Isolation**: To prevent conflicts with the official extension, the package name is renamed to `cmd-lite` under display name `CMD Lite` and publisher `moneyacademyke`.
 - **Namespace Consistency**: Internal settings namespaces, custom commands, and socket paths remain configured under the legacy `commandcode` namespace (e.g. `commandcode.cliPath`) to maintain compatibility with the global `cmd` CLI, keeping editor metadata changes decoupled from execution compatibility.
 
+## UI Architecture (Thin Glass Pattern)
+- **Webview vs CLI State**: Introducing rich frontend Webviews (like the Kilo Code sidebar) risks massive state entanglement if the frontend maintains its own model selection or token count state.
+- **Dumb Renderers**: We solved this by using the "Thin Glass" pattern. The Webview is built with Vanilla JS without heavy frameworks. It purely receives `webview/dispatchEvent` JSON-RPC payloads (e.g., `RenderMessage`, `UpdateTokens`) from the `cmd` CLI via the extension, and acts as a dumb renderer.
+- **Event-Driven Inputs**: All UI interactions (clicks, text input) are fired back to the CLI without mutating local UI state. The CLI processes them and emits a new state payload, ensuring Rich Hickey's "Simple Made Easy" principles are upheld in our UI layer.

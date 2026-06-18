@@ -73,6 +73,11 @@
     "views": {
       "commandcode.viewContainer": [
         {
+          "id": "commandcode.chatView",
+          "name": "Chat",
+          "type": "webview"
+        },
+        {
           "id": "commandcode.tasteView",
           "name": "Taste"
         },

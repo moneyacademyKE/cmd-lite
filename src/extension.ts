@@ -21,6 +21,7 @@ import {
   registerTasteWatcher,
   TasteTreeProvider,
 } from "./taste/tasteView";
+import { ChatViewProvider } from "./webview/ChatViewProvider";
 import { ContextProvider } from "./context/provider";
 import { IPCServer } from "./context/ipc-server";
 import {
@@ -90,6 +91,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerTreeDataProvider(
       "commandcode.sessionView",
       sessionProvider,
+    ),
+    vscode.window.registerWebviewViewProvider(
+      ChatViewProvider.viewType,
+      new ChatViewProvider(context.extensionUri)
     ),
   );
 

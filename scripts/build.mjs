@@ -8,7 +8,7 @@ const outdir = "dist";
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
 
-const options = {
+const extensionOptions = {
   entryPoints: ["src/extension.ts"],
   bundle: true,
   outfile: path.join(outdir, "extension.js"),
@@ -21,11 +21,22 @@ const options = {
   treeShaking: true,
 };
 
+const webviewOptions = {
+  entryPoints: ["src/webview/main.ts"],
+  bundle: true,
+  outfile: path.join(outdir, "webview/main.js"),
+  platform: "browser",
+  sourcemap: true,
+  logLevel: "info",
+  treeShaking: true,
+};
+
 if (watch) {
-  const ctx = await context(options);
-  await ctx.watch();
+  const ctxExt = await context(extensionOptions);
+  const ctxWebview = await context(webviewOptions);
+  await Promise.all([ctxExt.watch(), ctxWebview.watch()]);
   console.log("Watching for changes...");
 } else {
-  await build(options);
+  await Promise.all([build(extensionOptions), build(webviewOptions)]);
   console.log("Build complete.");
 }
