@@ -70,7 +70,11 @@ export async function runPrint(
   }
   if (options.plan) args.push("--plan");
   if (options.resume) args.push("-r", options.resume);
-  return runCli(args, { cwd: options.cwd, timeoutMs: options.timeoutMs });
+  return runCli(args, {
+    cwd: options.cwd,
+    timeoutMs: options.timeoutMs,
+    onStdoutChunk: options.onStdoutChunk,
+  });
 }
 
 export async function listModels(cwd?: string): Promise<ModelInfo[]> {

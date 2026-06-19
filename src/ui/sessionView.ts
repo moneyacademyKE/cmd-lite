@@ -45,7 +45,7 @@ function getProjectDir(cwd: string): string {
   return path.join(SESSION_PROJECTS_DIR, slug);
 }
 
-function listSessions(cwd: string): SessionEntry[] {
+export function listSessions(cwd: string): SessionEntry[] {
   const projectDir = getProjectDir(cwd);
   if (!fs.existsSync(projectDir)) return [];
   try {

@@ -150,8 +150,29 @@ export class IPCServer implements vscode.Disposable {
       });
 
       this.server.on("error", (error) => {
-        this.log(`Server error: ${error.message}`);
-        reject(error);
+        if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
+          this.log(`EADDRINUSE on ${this.socketPath}; removing and retrying...`);
+          this.server?.close();
+          try {
+            fs.unlinkSync(this.socketPath);
+          } catch {
+            // best-effort
+          }
+          this.server = net.createServer((socket) =>
+            this.handleConnection(socket),
+          );
+          this.server.listen(this.socketPath, () => {
+            this.log(`IPC server started on retry (auth token: ${this.authToken})`);
+            resolve();
+          });
+          this.server.on("error", (retryError) => {
+            this.log(`Server error on retry: ${retryError.message}`);
+            reject(retryError);
+          });
+        } else {
+          this.log(`Server error: ${error.message}`);
+          reject(error);
+        }
       });
     });
   }

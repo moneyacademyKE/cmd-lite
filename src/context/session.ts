@@ -120,3 +120,23 @@ export function cleanupSocket(socketPath: string): void {
     // best-effort
   }
 }
+
+/** Remove all stale .sock files for the given IDE name from the session dir. */
+export function cleanupStaleSockets(ideName: string): void {
+  if (process.platform === "win32") return;
+  if (!fs.existsSync(SESSION_DIR)) return;
+  try {
+    const entries = fs.readdirSync(SESSION_DIR);
+    for (const entry of entries) {
+      if (entry.endsWith(".sock") && entry.startsWith(`${ideName}-`)) {
+        try {
+          fs.unlinkSync(path.join(SESSION_DIR, entry));
+        } catch {
+          // best-effort
+        }
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
