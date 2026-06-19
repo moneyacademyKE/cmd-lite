@@ -343,8 +343,9 @@ window.addEventListener('message', (event: MessageEvent) => {
         appendMessage({ id: 'sys-' + Date.now(), role: 'system', content: payload.text });
         break;
       case 'BackgroundTaskNotification': {
-        const title = (payload.data as any)?.title || "Background Task Completed";
-        const message = (payload.data as any)?.message || "A background task has finished execution.";
+        const data = payload.data as Record<string, unknown> | undefined;
+        const title = (typeof data?.title === 'string' ? data.title : undefined) || "Background Task Completed";
+        const message = (typeof data?.message === 'string' ? data.message : undefined) || "A background task has finished execution.";
         const html = `
           <div class="diff-widget" style="border-color: var(--vscode-notificationsInfoIcon-foreground);">
             <div class="diff-header" style="background: var(--vscode-notificationsInfoIcon-foreground); color: var(--vscode-editor-background);">
