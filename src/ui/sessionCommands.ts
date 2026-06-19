@@ -12,13 +12,15 @@ import { getActiveCwd } from "../config";
 import { resolveCliPath } from "../cli/resolve";
 import { startInteractiveSession } from "../permission/interactive";
 import type { StatusBar } from "./statusBar";
-import type { SessionTreeProvider, SessionTreeItem } from "./sessionView";
+import { type SessionTreeProvider, type SessionTreeItem, getJsonlPathForSession } from "./sessionView";
+import type { ChatViewProvider } from "../webview/ChatViewProvider";
 
 export function registerSessionCommands(
   context: vscode.ExtensionContext,
   statusBar: StatusBar,
   sessionTree: SessionTreeProvider,
   outputChannel: vscode.OutputChannel,
+  chatProvider: ChatViewProvider,
 ): void {
   const extUri = context.extensionUri;
 
@@ -42,9 +44,42 @@ export function registerSessionCommands(
           placeHolder: "session name or id (blank to pick from history)",
         }));
       if (id) {
+        const cleanId = id.trim();
+        // Hydrate Webview from JSONL
+        const jsonlPath = getJsonlPathForSession(cleanId);
+        if (jsonlPath && fs.existsSync(jsonlPath)) {
+          try {
+            const raw = fs.readFileSync(jsonlPath, "utf-8");
+            const lines = raw.split(/\r?\n/).filter((l) => l.trim());
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed.role && (parsed.content || parsed.text)) {
+                  chatProvider.dispatchEvent({
+                    jsonrpc: "2.0",
+                    method: "webview/dispatchEvent",
+                    params: {
+                      type: "RenderMessage",
+                      payload: {
+                        id: crypto.randomUUID(),
+                        role: parsed.role,
+                        content: parsed.content ?? parsed.text
+                      }
+                    }
+                  });
+                }
+              } catch {
+                // Ignore parsing errors for individual lines
+              }
+            }
+          } catch (err) {
+            outputChannel.appendLine(`Failed to hydrate session: ${err}`);
+          }
+        }
+        
         startInteractiveSession(extUri, {
           cwd,
-          resume: id.trim() || undefined,
+          resume: cleanId || undefined,
           trust: true,
         });
       }

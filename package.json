@@ -506,7 +506,7 @@
     ]
   },
   "scripts": {
-    "prepare": "node scripts/install-hooks.js",
+    "prepare": "bb scripts/install-hooks.clj",
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",

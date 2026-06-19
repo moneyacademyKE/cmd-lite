@@ -7,14 +7,10 @@ import { getActiveCwd, getEffectivePermissionMode, getEffectiveModel, getEffecti
 import { markdownFromCli } from "./format";
 import { hasCodeProposal, StreamingDiffManager, setCurrentDiffManager } from "../diff/preview";
 
-interface ParticipantState {
-  permissionMode: PermissionMode;
-  model: string | undefined;
-  planMode: boolean;
-}
+import { readSessionState, writeSessionState, type ParticipantState } from "../cli/store";
 
 export function registerChatParticipant(context: vscode.ExtensionContext): void {
-  loadPersistedState(context);
+  loadPersistedState();
 
   const participant = vscode.chat.createChatParticipant(
     "cmd-lite.chat",
@@ -88,7 +84,7 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
       }
 
       updateState(state);
-      persistState(context);
+      persistState();
       return { metadata: { command, planMode: state.planMode } } satisfies vscode.ChatResult;
     },
   );
@@ -144,12 +140,14 @@ function updateState(next: ParticipantState): void {
 
 let currentSessionState: ParticipantState | undefined;
 
-function persistState(context: vscode.ExtensionContext): void {
-  context.globalState.update("cmd-lite.participantState", currentSessionState);
+function persistState(): void {
+  if (currentSessionState) {
+    writeSessionState(currentSessionState);
+  }
 }
 
-function loadPersistedState(context: vscode.ExtensionContext): void {
-  const stored = context.globalState.get<ParticipantState>("cmd-lite.participantState");
+function loadPersistedState(): void {
+  const stored = readSessionState();
   if (stored) {
     currentSessionState = stored;
   }

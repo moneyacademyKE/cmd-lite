@@ -7,6 +7,7 @@ import {
   Tool,
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SocketTransport } from "./transport.js";
 import { cleanupSocket } from "../context/session.js";
 
@@ -15,12 +16,13 @@ export interface McpTool extends Tool {
 }
 
 export class CmdMcpServer {
-  private server: net.Server;
+  private server?: net.Server;
   private mcpServer: Server;
+  private usingStdio = false;
 
   constructor(
-    private readonly socketPath: string,
-    private readonly tools: McpTool[] = [] // We will inject tools here
+    private readonly socketPath?: string,
+    private readonly tools: McpTool[] = []
   ) {
     this.mcpServer = new Server(
       {
@@ -36,14 +38,18 @@ export class CmdMcpServer {
 
     this.setupHandlers();
 
-    this.server = net.createServer((socket) => {
-      const transport = new SocketTransport(socket);
-      this.mcpServer.connect(transport).catch(console.error);
-    });
+    if (this.socketPath) {
+      this.server = net.createServer((socket) => {
+        const transport = new SocketTransport(socket);
+        this.mcpServer.connect(transport).catch(console.error);
+      });
 
-    this.server.on("error", (err) => {
-      console.error("[MCP] Server error:", err);
-    });
+      this.server.on("error", (err) => {
+        console.error("[MCP] Server error:", err);
+      });
+    } else {
+      this.usingStdio = true;
+    }
   }
 
   private setupHandlers(): void {
@@ -66,20 +72,29 @@ export class CmdMcpServer {
     });
   }
 
-  public start(): void {
-    cleanupSocket(this.socketPath);
-    this.server.listen(this.socketPath, () => {
-      try {
-        fs.chmodSync(this.socketPath, 0o600);
-      } catch {
-        // best-effort
-      }
-    });
+  public async start(): Promise<void> {
+    if (this.usingStdio) {
+      const transport = new StdioServerTransport();
+      await this.mcpServer.connect(transport);
+    } else if (this.socketPath && this.server) {
+      cleanupSocket(this.socketPath);
+      this.server.listen(this.socketPath, () => {
+        try {
+          fs.chmodSync(this.socketPath!, 0o600);
+        } catch {
+          // best-effort
+        }
+      });
+    }
   }
 
   public stop(): void {
     this.mcpServer.close();
-    this.server.close();
-    cleanupSocket(this.socketPath);
+    if (this.server) {
+      this.server.close();
+    }
+    if (this.socketPath) {
+      cleanupSocket(this.socketPath);
+    }
   }
 }

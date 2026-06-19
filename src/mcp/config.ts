@@ -33,6 +33,14 @@ export async function generateMcpConfig(): Promise<void> {
         command: "npx",
         args: ["-y", "@modelcontextprotocol/server-memory"],
       },
+      "unstorage": {
+        command: "npx",
+        args: ["-y", "unstorage-mcp"],
+      },
+      "webhook": {
+        command: "npx",
+        args: ["-y", "mcp-webhook", "--port", "51934"],
+      },
     },
   };
 

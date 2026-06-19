@@ -28,6 +28,8 @@ The unofficial extension is built as a **decoupled, feature-rich wrapper** that 
 | **Taste Sidebar TreeView** | ❌ | ✅ | **Feature**: Employs `FileSystemWatcher` for reactive reload of `.commandcode/taste/`. |
 | **Status Bar Controller** | ❌ | ✅ | **Feature**: Quick settings selector for active model, permission modes, and status. |
 | **MCP Config Generator** | ❌ | ✅ | **Feature**: Generates `mcp.json` to provision external OS capabilities dynamically. |
+| **Externalized Session State** | ❌ | ✅ | **Feature**: Decouples UI from state by hydrating from `unstorage-mcp` filesystem JSON. |
+| **Event-Driven Wakeups** | ❌ | ✅ | **Feature**: Replaces polling with standard MCP webhook triggers for background tasks. |
 | **Session History Log** | ❌ | ✅ | **Feature**: Reads active sessions and metadata straight from `~/.commandcode/projects/`. |
 | **Reactive Configuration** | ❌ | ✅ | **Robust**: Instantly updates CLI path validation and status bars on setting changes. |
 | **Test Coverage** | ❌ | ✅ | **Quality**: 38 unit tests configured with Vitest + automated GitHub Actions CI. |
@@ -52,7 +54,11 @@ Instead of hardcoding complex OS capabilities (like File System access or Git ex
 Running multiple agents concurrently (e.g., implementing, testing, and documenting at once) is high-utility but traditionally complects state.
 * **Simple Implementation:** We treat the project's instructions and "taste" preferences as immutable values. Our parallel agent module spawns concurrent `cmd --headless` subprocesses. Each process operates independently without mutating live code, outputting proposal events that are merged or reviewed sequentially.
 
-### 3. Complexity vs. Utility Matrix
+### 4. Event-Driven Wakeups & State Decomplecting
+* **Accidental Complexity:** Polling for background task completion or trapping agent preferences (like permission modes) inside proprietary IDE data stores (like `globalState`).
+* **Essential Simplicity:** We rely on standard **MCP Registries**. Agent state is managed externally via `unstorage-mcp` writing pure JSON, and background tasks notify the UI dynamically via an `mcp-webhook` server. The extension acts purely as a "Thin Glass" read-only UI layer.
+
+### 5. Complexity vs. Utility Matrix
 
 | Capability | Utility | Technical Complexity | Architectural Type | Verdict |
 | :--- | :---: | :---: | :---: | :--- |

@@ -301,7 +301,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTasteWatcher(context, tasteProvider);
   registerTasteCommands(context, tasteProvider, outputChannel);
   initializePermissionStore(context);
-  registerSessionCommands(context, statusBar, sessionProvider, outputChannel);
+  registerSessionCommands(context, statusBar, sessionProvider, outputChannel, chatProvider);
   registerChatParticipant(context);
   registerLmTools(context);
 

@@ -69,6 +69,14 @@
 - **Context**: Writing custom wrapper scripts (even in Babashka) inside an IDE extension to grant the CLI OS-level capabilities tightly couples the execution environment to the IDE repository.
 - **Solution**: Pivot entirely to composing external registries. Generate dynamic configuration files (`mcp.json`) that command the headless CLI to provision **Official Reference MCP Servers** via `npx -y` at runtime. This removes maintenance burden from the extension layer and ensures the agent always operates on standard, open-source capability sets.
 
+### State Decomplecting Pattern (UI vs Execution)
+- **Context**: Storing agent session preferences (like model selection, permission mode) inside the IDE's built-in global state API traps that data within the IDE process, blocking headless CLI tasks from resuming the exact same session context.
+- **Solution**: Move shared execution state out of the IDE's proprietary data stores and into a persistent, simple format (e.g., a `.json` file in the user's home directory). The IDE should read from and write to this file exactly as the CLI does, ensuring total decoupling and "Simple Made Easy" architecture.
+
+### Event-Driven Wakeups Pattern (MCP Triggers)
+- **Context**: When delegating work to autonomous background agents, forcing the IDE or the main CLI process to synchronously wait or poll for completion leads to high resource utilization and poor user experience.
+- **Solution**: Leverage MCP Notifications or custom IPC events (like `NOTIFY_BACKGROUND_TASK`) to asynchronously dispatch completion payloads. The UI listens for these specific notification events and renders updates dynamically, allowing background tasks to sleep/wake efficiently.
+
 ### Base64 DataURI Context Bridge Pattern
 - **Context**: Sandboxed IDE Webviews cannot reliably access OS absolute file paths, preventing users from dragging-and-dropping context (like images or logs) directly to an external CLI process.
 - **Solution**: Intercept the HTML5 `drop` event within the Webview, convert the file to a Base64 DataURI using `FileReader`, and pass the serialized payload over JSON-RPC to the extension host. The extension can then securely cache the file in the workspace or forward the URI to the CLI's MCP File System tool.
@@ -80,3 +88,14 @@
 ### External CLI Version Guard Pattern
 - **Context**: When wrapping a globally installed CLI, extension updates might introduce new JSON-RPC actions that older CLI binaries do not understand, causing silent protocol failures.
 - **Solution**: On extension activation, synchronously call the CLI with `--version` and assert against a `MINIMUM_CLI_VERSION` constant. Block initialization and prompt the user to update their CLI rather than allowing corrupt or silent execution errors.
+
+### Strict Type Verification Pattern
+- **Context**: Bypassing the type system in tests using `as any` allows silent regressions when payload shapes change, destroying the value of a static type checker.
+- **Solution**: Avoid `any`. Treat unverified inputs as `unknown` and perform explicit type narrowing or structural typing (e.g., `Record<string, unknown>`). This adheres to data-driven correctness, ensuring assumptions about shape are explicitly documented.
+
+### Rich Hickey Quality Checklist Pattern
+- **Context**: Features are often added using the "easiest" tool available (Node.js scripts for TS projects, `any` for fast test writing), which leads to long-term accidental complexity.
+- **Solution**: Before merging, evaluate code against the Rich Hickey Checklist:
+  1. **Simplicity over Easiness**: Does the tool decomplect domains? (e.g. `bb` separates scripts from TS compilation configs).
+  2. **Immutability over Mutation**: Is state explicitly managed and minimal? Eliminate dead code and dead state immediately.
+  3. **Data Verification**: Is the data shape guaranteed or casually assumed? (Reject `any`).

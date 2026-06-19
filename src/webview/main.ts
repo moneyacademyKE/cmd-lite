@@ -27,8 +27,7 @@ const state: {
   statusText: '',
 };
 
-// Track which panel is visible
-let activePanel: 'chat' | 'sessions' | 'status' | 'agents' = 'chat';
+// Removed unused activePanel variable
 
 function sendAction(action: string, payload?: Record<string, unknown>) {
   vscode.postMessage({ type: 'action', action, payload });
@@ -201,7 +200,6 @@ function attachEventListeners() {
 }
 
 function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents') {
-  activePanel = panel;
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('panel-active'));
   const target = document.getElementById(`${panel}-panel`);
   if (target) target.classList.add('panel-active');
@@ -344,6 +342,23 @@ window.addEventListener('message', (event: MessageEvent) => {
       case 'Notification':
         appendMessage({ id: 'sys-' + Date.now(), role: 'system', content: payload.text });
         break;
+      case 'BackgroundTaskNotification': {
+        const title = (payload.data as any)?.title || "Background Task Completed";
+        const message = (payload.data as any)?.message || "A background task has finished execution.";
+        const html = `
+          <div class="diff-widget" style="border-color: var(--vscode-notificationsInfoIcon-foreground);">
+            <div class="diff-header" style="background: var(--vscode-notificationsInfoIcon-foreground); color: var(--vscode-editor-background);">
+              <span>🔔 NOTIFICATION</span>
+            </div>
+            <div class="diff-content" style="padding: 8px;">
+              <strong>${escapeHtml(title)}</strong><br/>
+              ${escapeHtml(message)}
+            </div>
+          </div>
+        `;
+        appendMessage({ id: 'bg-' + Date.now(), role: 'system', content: html });
+        break;
+      }
     }
   }
 });
