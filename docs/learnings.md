@@ -28,3 +28,11 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 - **The Complected Way:** Adopting a framework like SolidJS for a simple chat interface, introducing JSX compilation, Vite/Babel toolchains, and risking state moving from the CLI back into the UI. Partytown adds cross-thread DOM proxying, massive complexity for a webview that runs zero heavy 3rd-party scripts.
 - **The Simple Way:** "Thin Glass" Vanilla JS. Direct DOM updates (`document.getElementById().innerText`) are extremely fast, require zero dependencies, and enforce a stateless UI architecture by making it difficult to store complex state locally.
 - *Conclusion:* Guard against incidental complexity. Frameworks solve specific problems at scale; adopting them before reaching that scale complects the architecture for zero tangible benefit.
+
+### 5. IPC Authentication and Deadlocks
+- **The Complected Way:** Enforcing strict token authentication over local UDS sockets and requiring explicit `CLAIM_UI_LOCK` payloads. This breaks backward compatibility and creates deadlocks if older CLI clients fail to authenticate correctly or acquire the lock before sending UI events.
+- **The Simple Way:** Implicit Trust on Local UDS and Implicit UI Lock Inference. Since the socket is local to the user's machine, strict token checking is often redundant. By implicitly granting the UI lock to any session that actively dispatches a `DISPATCH_WEBVIEW_EVENT`, we instantly resolve deadlocks and gracefully support legacy clients.
+
+### 6. Stateless Multi-Panel UIs and Optimistic Updates
+- **The Complected Way:** Managing tab state in a Javascript variable and re-rendering the entire DOM when switching tabs (e.g. Chat vs Sessions vs Status).
+- **The Simple Way:** CSS-driven Panel visibility. A simple Javascript function toggles a `panel-active` CSS class. The Webview remains entirely stateless, relying purely on the DOM's built-in structural state. Furthermore, for inputs (like the Chat Execute button), updating the DOM optimistically *before* the backend responds creates immediate tactile feedback without requiring complex state management.

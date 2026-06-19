@@ -42,3 +42,31 @@ Keep the Webview completely stateless and free of incidental complexity by rejec
 2. **JSON-RPC Events:** The Webview should purely render JSON-RPC payloads received from the CLI and dispatch raw events back.
 3. **No Local State:** The Webview should hold no complex state. Any interaction should immediately send a message back to the CLI, and the CLI should respond with a new UI rendering event.
 4. **Optimistic Updates:** Only perform targeted DOM mutations (like appending a chat message) if it provides immediate tactile feedback, but do not store the result as authoritative state.
+
+---
+
+# Pattern: Implicit Lock Inference
+
+## Problem
+When a frontend connects to a multi-client IPC server, enforcing a strict protocol where clients must explicitly request a "UI Lock" before sending events can lead to deadlocks. Legacy clients or scripts might fail to send the lock request, breaking their ability to interact with the UI.
+
+## Context (Rich Hickey Lens)
+- **Complecting:** Requiring an explicit handshake complects the *intent* to control the UI with the *permission* to control the UI.
+- **Simplicity:** A client that actively dispatches a UI event is implicitly demonstrating its intent to control the UI.
+
+## Solution
+Use **Implicit Lock Inference**. If a client sends an event (e.g. `DISPATCH_WEBVIEW_EVENT`), the server should implicitly grant it the UI lock if the lock is currently unowned or owned by a disconnected client. This prevents deadlocks and seamlessly supports backward compatibility without requiring strict authentication or handshakes.
+
+---
+
+# Pattern: CSS-Driven Stateless Webview Panels
+
+## Problem
+Adding multiple views (Chat, Sessions, Status) to a Webview often tempts developers into using Javascript routers or state management to track the "active tab" and re-render the DOM, complecting UI structure with application state.
+
+## Solution
+Keep the Webview completely stateless by using a CSS-driven panel system.
+1. Structure each view as a separate DOM container (`<div class="panel" id="chat-panel">`).
+2. Use CSS to hide all panels by default (`display: none;`).
+3. Define an active class (`.panel-active { display: flex; }`).
+4. Switch views by simply toggling the `panel-active` class via Vanilla JS. The DOM itself acts as the single source of truth for visibility, removing the need for local state variables.
