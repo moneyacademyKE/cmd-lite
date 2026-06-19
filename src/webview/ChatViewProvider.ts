@@ -1,5 +1,30 @@
 import * as vscode from 'vscode';
+import { getEffectiveModel, getEffectivePermissionMode } from '../config';
+import type { EditorContext } from '../context/protocol';
 
+// Module-level state shared between extension and webview
+let currentSessionId: string | null = null;
+let turnCount = 0;
+
+export function setCurrentSessionId(id: string | null) {
+  currentSessionId = id;
+}
+
+export function getCurrentSessionId(): string | null {
+  return currentSessionId;
+}
+
+export function incrementTurnCount(): number {
+  return ++turnCount;
+}
+
+export function getTurnCount(): number {
+  return turnCount;
+}
+
+export function resetTurnCount() {
+  turnCount = 0;
+}
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'cmd-lite.chatView';
@@ -26,11 +51,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage((message) => {
-      // "Thin Glass": We simply pass interactions back to the CLI context server or event bus.
       if (this._onEvent) {
         this._onEvent('webview_interaction', message);
       } else {
         console.log('Received message from webview (unhandled):', message);
+      }
+    });
+
+    // Send initial state to hydrate the webview
+    this.dispatchEvent({
+      jsonrpc: "2.0",
+      method: "webview/dispatchEvent",
+      params: {
+        type: "initState",
+        payload: {
+          modelId: getEffectiveModel() ?? '',
+          permissionMode: getEffectivePermissionMode(),
+          tokens: { prompt: 0, completion: 0, total: 0 },
+          sessionId: currentSessionId ?? '',
+          turnCount,
+        }
       }
     });
   }
@@ -41,8 +81,43 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Send full editor context to the webview sidebar */
+  public dispatchContext(context: EditorContext) {
+    this.dispatchEvent({
+      jsonrpc: "2.0",
+      method: "webview/dispatchEvent",
+      params: {
+        type: "UpdateContext",
+        payload: context,
+      },
+    });
+  }
+
+  /** Send session state info to the webview footer */
+  public dispatchSessionInfo(sessionId: string, tCount: number) {
+    this.dispatchEvent({
+      jsonrpc: "2.0",
+      method: "webview/dispatchEvent",
+      params: {
+        type: "UpdateSessionInfo",
+        payload: { sessionId, turnCount: tCount },
+      },
+    });
+  }
+
+  /** Send updated turn count */
+  public dispatchTurnCount(tCount: number) {
+    this.dispatchEvent({
+      jsonrpc: "2.0",
+      method: "webview/dispatchEvent",
+      params: {
+        type: "UpdateTurnCount",
+        payload: { turnCount: tCount },
+      },
+    });
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview) {
-    // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'main.js')
     );
@@ -51,21 +126,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'style.css')
     );
 
-    // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
 
     return `<!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <!--
-          Use a content security policy to only allow loading styles from our extension directory,
-          and only allow scripts that have a specific nonce.
-        -->
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link href="${styleUri}" rel="stylesheet">
-        <title>Command Code Chat</title>
+        <title>Command Code</title>
       </head>
       <body>
         <div id="app"></div>

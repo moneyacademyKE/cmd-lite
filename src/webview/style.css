@@ -1,12 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
-
 :root {
-  --bg-color: #050505;
-  --fg-color: #E0E0E0;
-  --accent: #00FF41;
-  --grid-color: #1A1A1A;
-  --border-color: #333333;
-  --font-mono: 'Space Mono', monospace, var(--vscode-editor-font-family);
+  --bg-color: var(--vscode-terminal-background, #050505);
+  --fg-color: var(--vscode-terminal-foreground, #E0E0E0);
+  --accent: var(--vscode-terminal-ansiGreen, #00FF41);
+  --grid-color: var(--vscode-editorGroup-border, rgba(255, 255, 255, 0.05));
+  --border-color: var(--vscode-focusBorder, #333333);
+  --font-mono: var(--vscode-editor-font-family), monospace;
 }
 
 body {
@@ -27,7 +25,8 @@ body {
 }
 
 /* Add uppercase back to specific UI components */
-.header h2, .metrics, .action-btn, .panel-header, .panel-close, .message-role, .diff-btn, button, .agent-task {
+.header h2, .metrics, .action-btn, .panel-header, .panel-close, .message-role, .diff-btn, button, .agent-task,
+.footer-item, .context-section-title, .tool-call-header, .streaming-cursor::before {
   text-transform: uppercase;
 }
 
@@ -43,6 +42,7 @@ body::after {
   background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
   z-index: 2;
   background-size: 100% 2px, 3px 100%;
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -112,7 +112,7 @@ body::after {
   padding: 10px;
   border: 1px solid var(--border-color);
   background-color: rgba(0, 0, 0, 0.8);
-  font-size: 12px;
+  font-size: 13px;
   position: relative;
 }
 
@@ -174,13 +174,14 @@ textarea {
 }
 
 textarea:focus {
-  outline: none;
+  outline: 1px solid var(--vscode-focusBorder, var(--accent));
+  outline-offset: -1px;
   border-color: var(--accent);
   background: rgba(0, 255, 65, 0.05);
 }
 
 textarea::placeholder {
-  color: #444;
+  color: var(--vscode-input-placeholderForeground, #888);
 }
 
 .controls {
@@ -212,6 +213,12 @@ button {
   letter-spacing: 1px;
   transition: all 0.2s;
   position: relative;
+  outline: 1px solid transparent;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--accent));
+  outline-offset: -1px;
 }
 
 button::before {
@@ -245,8 +252,10 @@ button:hover::before {
 }
 
 .action-btn {
-  font-size: 9px;
-  padding: 4px 8px;
+  font-size: 11px;
+  padding: 6px 10px;
+  min-height: 24px;
+  outline: 1px solid transparent;
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--border-color);
@@ -256,6 +265,11 @@ button:hover::before {
   letter-spacing: 0.5px;
   white-space: nowrap;
   transition: all 0.15s;
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--accent));
+  outline-offset: -1px;
 }
 
 .action-btn:hover {
@@ -465,9 +479,9 @@ button:hover::before {
   color: var(--accent);
 }
 
-/* --- NEW CAPABILITY COMPONENTS --- */
+/* --- Enhanced Message Components --- */
 
-/* 1. Rich Visualization (Images) */
+/* Rich Visualization (Images) */
 .chat-image {
   max-width: 100%;
   border: 1px solid var(--border-color);
@@ -475,7 +489,7 @@ button:hover::before {
   display: block;
 }
 
-/* 2. Interactive Diff Proposals */
+/* Interactive Diff Proposals */
 .diff-widget {
   margin-top: 10px;
   border: 1px solid var(--border-color);
@@ -503,8 +517,8 @@ button:hover::before {
   background: transparent;
   color: var(--fg-color);
   border: 1px solid var(--border-color);
-  font-size: 9px;
-  padding: 2px 6px;
+  font-size: 11px;
+  padding: 6px 12px;
   cursor: pointer;
   text-transform: uppercase;
 }
@@ -523,13 +537,13 @@ button:hover::before {
 .diff-line.add { color: #00FF41; background: rgba(0, 255, 65, 0.05); }
 .diff-line.sub { color: #FF0041; background: rgba(255, 0, 65, 0.05); }
 
-/* 3. Drag and Drop Overlay */
+/* Drag and Drop Overlay */
 .dropzone-active {
   background: rgba(0, 255, 65, 0.1) !important;
   border: 2px dashed var(--accent) !important;
 }
 
-/* 4. Agents Panel */
+/* Agents Panel */
 .agent-item {
   display: flex;
   align-items: center;
@@ -560,3 +574,270 @@ button:hover::before {
   100% { opacity: 1; }
 }
 
+/* ─── MAIN CONTENT LAYOUT ─────────────────────── */
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  z-index: 3;
+}
+
+.panel-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── CONTEXT SIDEBAR ─────────────────────────── */
+
+.sidebar {
+  width: 280px;
+  border-left: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar.hidden {
+  display: none;
+}
+
+.context-section {
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px;
+}
+
+.context-section-title {
+  font-size: 9px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.context-section-body {
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-file {
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  justify-content: space-between;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.context-file:hover {
+  background: rgba(0, 255, 65, 0.08);
+}
+
+.context-file-path {
+  color: var(--fg-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-file-lang {
+  color: var(--border-color);
+  font-size: 8px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.context-git-branch {
+  color: var(--accent);
+}
+
+.context-git-dirty {
+  color: #FFA500;
+  font-size: 9px;
+}
+
+.context-diag-error {
+  color: #FF0041;
+}
+
+.context-diag-warn {
+  color: #FFA500;
+}
+
+.context-muted {
+  color: var(--border-color);
+  font-style: italic;
+}
+
+/* ─── FOOTER STATUS BAR ────────────────────────── */
+
+.footer-bar {
+  display: flex;
+  gap: 16px;
+  padding: 6px 20px;
+  border-top: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.9);
+  font-size: 9px;
+  color: var(--accent);
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.footer-item {
+  white-space: nowrap;
+}
+
+/* Streaming cursor blink in footer */
+.streaming-indicator {
+  flex: 1;
+  text-align: right;
+}
+
+.streaming-indicator.is-active::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ─── STREAMING CURSOR (chat history) ──────────── */
+
+.streaming-cursor {
+  padding: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.streaming-cursor::before {
+  content: "▸ RESPONDING";
+  font-size: 9px;
+  opacity: 0.7;
+  letter-spacing: 1px;
+}
+
+.streaming-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background: var(--accent);
+  animation: blink-cursor 1s step-end infinite;
+  margin-left: 4px;
+}
+
+/* ─── THOUGHT ACCORDION ────────────────────────── */
+
+.step-accordion {
+  border: 1px solid var(--border-color);
+  margin: 8px 0;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+}
+
+.step-accordion summary {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 11px;
+  user-select: none;
+  letter-spacing: 0.5px;
+}
+
+.step-accordion summary:hover {
+  background: rgba(0, 255, 65, 0.05);
+}
+
+.step-accordion[open] summary {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.thought-content {
+  padding: 10px;
+  font-size: 12px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.thought-content p {
+  margin: 0 0 8px 0;
+}
+
+.thought-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── TOOL CALL / RESULT WIDGETS ───────────────── */
+
+.tool-call,
+.tool-result {
+  border: 1px solid var(--border-color);
+  margin: 6px 0;
+  font-size: 11px;
+  border-radius: 2px;
+}
+
+.tool-call-header {
+  display: block;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-body {
+  padding: 8px;
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  color: var(--fg-color);
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* ─── DIFF BLOCK (```diff) ─────────────────────── */
+
+.diff-block {
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  margin: 8px 0;
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  border-radius: 2px;
+}
+
+.diff-line.hunks {
+  color: #6a9955;
+}
+
+/* ─── SIDEBAR SCROLLBAR ────────────────────────── */
+
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: var(--bg-color); }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border-color); }
+.sidebar::-webkit-scrollbar-thumb:hover { background: var(--accent); }

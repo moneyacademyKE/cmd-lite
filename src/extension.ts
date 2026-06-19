@@ -24,7 +24,7 @@ import {
   registerTasteWatcher,
   TasteTreeProvider,
 } from "./taste/tasteView";
-import { ChatViewProvider } from "./webview/ChatViewProvider";
+import { ChatViewProvider, incrementTurnCount, setCurrentSessionId } from "./webview/ChatViewProvider";
 import { ContextProvider } from "./context/provider";
 import { IPCServer } from "./context/ipc-server";
 import {
@@ -83,12 +83,28 @@ async function handleWebviewAction(
       });
       break;
     }
-    case "pick-model":
-      await pickModel();
+    case "pick-model": {
+      const selected = await pickModel();
+      if (selected) {
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "modelChanged", payload: { modelId: selected } }
+        });
+      }
       break;
-    case "pick-permission":
-      await pickPermissionMode();
+    }
+    case "pick-permission": {
+      const selected = await pickPermissionMode();
+      if (selected) {
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "permChanged", payload: { permissionMode: selected } }
+        });
+      }
       break;
+    }
     case "show-status": {
       try {
         const text = await getStatus(cwd);
@@ -178,6 +194,12 @@ export function activate(context: vscode.ExtensionContext): void {
         let streamedAny = false;
         const msgId = `agent-${Date.now()}`;
 
+        // Increment turn count and push session info to footer
+        const turnCount = incrementTurnCount();
+        if (currentSessionId) {
+          chatProvider.dispatchSessionInfo(currentSessionId, turnCount);
+        }
+
         try {
           const result = await runPrint(prompt, {
             cwd: getActiveCwd(),
@@ -263,6 +285,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 content: `\n\n**Error:** ${message}\n`,
               },
             },
+          });
+        } finally {
+          chatProvider.dispatchEvent({
+            jsonrpc: "2.0",
+            method: "webview/dispatchEvent",
+            params: { type: "StreamFinished", payload: { id: msgId } }
           });
         }
         return;
@@ -446,6 +474,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // --- IPC context server ---
   const sessionId = crypto.randomUUID();
   currentSessionId = sessionId;
+  setCurrentSessionId(sessionId);
   const ideName = detectIdeName();
   currentIdeName = ideName;
   const socketPath = getSocketPath(sessionId, ideName);
@@ -462,6 +491,31 @@ export function activate(context: vscode.ExtensionContext): void {
   ipcServer.setWebviewDispatcher((eventPayload) => {
     chatProvider.dispatchEvent(eventPayload);
   });
+
+  // ── Context push to webview ──────────────────────────────────
+  const pushContext = async () => {
+    try {
+      const ctx = await contextProvider.getContext();
+      chatProvider.dispatchContext(ctx);
+    } catch {
+      // Context push is best-effort
+    }
+  };
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(pushContext),
+    vscode.workspace.onDidSaveTextDocument(pushContext),
+    vscode.workspace.onDidChangeTextDocument(
+      (e) => {
+        if (e.document === vscode.window.activeTextEditor?.document) {
+          pushContext();
+        }
+      },
+    ),
+  );
+
+  // Push initial context once webview is resolved (deferred)
+  setTimeout(pushContext, 1000);
 
   mcpServer = new CmdMcpServer(mcpSocketPath, [
     terminalTool,
