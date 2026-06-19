@@ -209,16 +209,24 @@ function appendMessage(m: { id: string, role: string, content: string }) {
   const history = document.getElementById('chat-history');
   if (!history) return;
   switchPanel('chat');
-  const div = document.createElement('div');
-  div.className = `message message-${m.role}`;
+  let div = document.getElementById(m.id);
+  if (!div) {
+    div = document.createElement('div');
+    div.id = m.id;
+    div.className = `message message-${m.role}`;
+    history.appendChild(div);
+  }
   
   let parsedContent = m.content;
-  if (!m.content.startsWith('<img') && !m.content.startsWith('<div class="diff-widget"')) {
-    parsedContent = marked.parse(m.content) as string;
+  try {
+    if (!m.content.startsWith('<img') && !m.content.startsWith('<div class="diff-widget"')) {
+      parsedContent = marked.parse(m.content) as string;
+    }
+  } catch (err) {
+    // fallback to raw text if marked fails
   }
   
   div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsedContent}</div>`;
-  history.appendChild(div);
   history.scrollTop = history.scrollHeight;
 }
 
@@ -314,6 +322,33 @@ window.addEventListener('message', (event: MessageEvent) => {
         state.tokens = payload;
         const tc = document.getElementById('token-count');
         if (tc) tc.innerText = `TOKENS // ${state.tokens.total.toLocaleString()}`;
+        break;
+      }
+      case 'StreamMessageChunk': {
+        const { id, role, chunk } = payload as { id: string, role: string, chunk: string };
+        const history = document.getElementById('chat-history');
+        if (history) {
+          switchPanel('chat');
+          let div = document.getElementById(id);
+          if (!div) {
+            div = document.createElement('div');
+            div.id = id;
+            div.className = `message message-${role}`;
+            div.dataset.raw = "";
+            history.appendChild(div);
+          }
+          div.dataset.raw += chunk;
+          
+          let parsedContent = div.dataset.raw;
+          try {
+            parsedContent = marked.parse(div.dataset.raw!) as string;
+          } catch (err) {
+            // fallback
+          }
+          
+          div.innerHTML = `<span class="message-role">${role}</span><div class="message-content">${parsedContent}</div>`;
+          history.scrollTop = history.scrollHeight;
+        }
         break;
       }
       case 'StdoutChunk': {

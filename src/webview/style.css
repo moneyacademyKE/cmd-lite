@@ -431,7 +431,6 @@ button:hover::before {
 .message-content h1, .message-content h2, .message-content h3, .message-content h4 {
   margin: 15px 0 10px 0;
   color: var(--fg-color);
-  text-transform: uppercase;
   font-size: 1.1em;
 }
 .message-content ul, .message-content ol {

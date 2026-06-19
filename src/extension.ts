@@ -176,6 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         outputChannel.appendLine(`[webview] chatInput received: ${prompt.slice(0, 80)}`);
         let streamedAny = false;
+        const msgId = `agent-${Date.now()}`;
 
         try {
           const result = await runPrint(prompt, {
@@ -189,8 +190,10 @@ export function activate(context: vscode.ExtensionContext): void {
                 jsonrpc: "2.0",
                 method: "webview/dispatchEvent",
                 params: {
-                  type: "StdoutChunk",
+                  type: "StreamMessageChunk",
                   payload: {
+                    id: msgId,
+                    role: "agent",
                     chunk: chunk,
                   },
                 },
@@ -209,7 +212,7 @@ export function activate(context: vscode.ExtensionContext): void {
               params: {
                 type: "RenderMessage",
                 payload: {
-                  id: `agent-${Date.now()}`,
+                  id: msgId,
                   role: "agent",
                   content: result.stdout,
                 },
