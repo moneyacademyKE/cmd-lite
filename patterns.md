@@ -55,7 +55,7 @@
 - **Solution**: Always wrap `case` clauses containing lexical declarations in block scopes `{}`. This satisfies `no-case-declarations` lint rules, prevents variable hoisting bugs across cases, and keeps the code clean without disabling linting.
 ## Standardized Editor Protocol Pattern (MCP)
 - **Context**: Extension wrappers often need to expose IDE capabilities (Terminal execution, Window prompts, File Search) to the CLI agent. Building custom JSON-RPC events for every IDE capability quickly complects the Context IPC server.
-- **Solution**: Run a native Model Context Protocol (MCP) Server inside the extension. Standardizing the interface means the `cmd` CLI can discover and execute IDE tools dynamically without requiring custom, tightly-coupled event handlers on both ends.
+- **Solution**: Run a native Model Context Protocol (MCP) Server inside the extension. Standardizing the interface means the `cmd` CLI can discover and execute IDE tools dynamically without requiring custom, tightly-coupled event handlers on both ends. *(Reference: [MCP Roadmap](file:///Users/moe/Desktop/cmd/docs/mcp-roadmap.md))*
 
 ### Decomplecting Stream Observation Pattern
 - **Context**: Tailing a continuous stdout stream into a chat interface creates massive UI churn and pollutes semantic messaging history.
