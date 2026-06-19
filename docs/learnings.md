@@ -53,3 +53,8 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 
 ### 11. Custom Regex Code Tokenization (Zero-Dependency Syntax Highlighting)
 - **The Simple Way:** Building a lightweight O(N) regex tokenizer inside `main.ts` that highlights code snippets without loading heavy third-party syntax highlight scripts.
+
+### 12. TUI-Webview Parity and Process Interrupts
+- **The Complected Way:** Managing complex active-state routing protocols, using polling timers on the extension host, or sending custom event payloads for each elapsed second.
+- **The Simple Way:** Handle Shift+Tab, Ctrl+T, Ctrl+O, Alt+P, and Esc defensively using Vanilla JS keydown listeners in the webview, and use standard Node `AbortSignal`/`AbortController` at the CLI execution layer. The webview tracks execution duration locally to avoid UDS socket traffic, while double-pressing Esc maps to checkpoint-restore.
+

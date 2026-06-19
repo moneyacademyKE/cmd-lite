@@ -144,6 +144,13 @@
 
 ---
 
+### Visual TUI Prompts & Keyboard Shortcut Delegation
+- **Problem**: Porting CLI keybindings (Shift+Tab, Ctrl+T, Ctrl+O, Alt+P, Esc) to webview inputs requires maintaining custom state wrappers and conflicts with browser focus trees.
+- **Solution**: Intercept specific key chords directly in the text area's keydown listener. Map visual states (like TASTE checkbox) to simple CSS active selectors, and dispatch direct action payloads (like `set-permission-mode`) to let the extension host maintain authoritative configurations.
+
+
+---
+
 ## Decoupled Scroll Anchoring Pattern (Stateful Resize/Mutation Observing)
 - **Context**: In dynamic webviews (e.g., chat interfaces, live-streaming terminals), content is dynamically formatted (markdown parsed, syntax highlighted, dynamic images loaded), causing async layout shifts and height changes that run after standard DOM mutation handlers finish execution. Checking scroll heights immediately after innerHTML mutations fails due to async layout reflow timing.
 - **Solution**: Decouple scroll adjustments from rendering updates. Maintain a single boolean state flag (`wasNearBottom`) that updates on user scroll events. Establish a `MutationObserver` on the dynamic container to intercept DOM changes, checking `wasNearBottom` to automatically adjust the `scrollTop` to the bottom post-reflow.

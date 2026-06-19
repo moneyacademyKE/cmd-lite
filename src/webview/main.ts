@@ -25,6 +25,7 @@ interface ContextInfo {
   openFiles: Array<{ path: string; language: string; isActive: boolean }>;
   gitBranch: string | null;
   dirtyFilesCount: number;
+  dirtyFiles: string[];
   diagnosticsCount: number;
 }
 
@@ -54,6 +55,7 @@ const state: {
   activePanel: 'chat' | 'sessions' | 'status' | 'agents';
   inputDraft: string;
   agents: { name: string; task: string }[];
+  continuousLearning: boolean;
 } = {
   tokens: { prompt: 0, completion: 0, total: 0 },
   modelId: '',
@@ -68,12 +70,14 @@ const state: {
     openFiles: [],
     gitBranch: null,
     dirtyFilesCount: 0,
+    dirtyFiles: [],
     diagnosticsCount: 0,
   },
   messages: [],
   activePanel: 'chat',
   inputDraft: '',
   agents: [],
+  continuousLearning: true,
 };
 
 function saveState() {
@@ -90,6 +94,7 @@ function saveState() {
     activePanel: state.activePanel,
     inputDraft: state.inputDraft,
     agents: state.agents,
+    continuousLearning: state.continuousLearning,
   });
 }
 
@@ -104,6 +109,8 @@ function addOrUpdateMessage(m: MessageItem) {
 }
 
 let isExecuting = false;
+let statusTimer: ReturnType<typeof setInterval> | null = null;
+let executionStartTime = 0;
 
 // Autocomplete State
 let autocompleteActive = false;
@@ -219,8 +226,96 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+// ─── Toast Notification System ────────────────────────
+
+function showToast(message: string, type: 'info' | 'error' | 'success' | 'warning' = 'info', durationMs = 4000) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.getElementById('app')?.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    <span class="toast-content">${escapeHtml(message)}</span>
+    <button class="toast-close">&times;</button>
+  `;
+
+  const closeBtn = toast.querySelector('.toast-close') as HTMLElement;
+  closeBtn.addEventListener('click', () => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 200);
+  });
+
+  container.appendChild(toast);
+
+  if (durationMs > 0) {
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 200);
+      }
+    }, durationMs);
+  }
+}
+
+// ─── Model Provider Badge ─────────────────────────────
+
+function getModelProvider(modelId: string): string | null {
+  const id = modelId.toLowerCase();
+  if (id.includes('claude') || id.includes('opus') || id.includes('sonnet') || id.includes('haiku')) return 'claude';
+  if (id.includes('deepseek')) return 'deepseek';
+  if (id.includes('gpt') || id.includes('o1') || id.includes('o3')) return 'gpt';
+  if (id.includes('gemini')) return 'gemini';
+  if (id.includes('ollama') || id.includes('llama')) return 'ollama';
+  return null;
+}
+
+function formatModelDisplay(modelId: string): string {
+  if (!modelId) return 'NONE';
+  const provider = getModelProvider(modelId);
+  const shortName = modelId.split('/').pop() || modelId;
+  if (provider) {
+    return `<span class="model-badge"><span class="model-provider ${provider}">${provider.toUpperCase()}</span> ${escapeHtml(shortName)}</span>`;
+  }
+  return escapeHtml(shortName);
+}
+
+// ─── Connection Status ────────────────────────────────
+
+function updateConnectionStatus(connected: boolean) {
+  const footerStream = document.getElementById('footer-stream');
+  if (!footerStream) return;
+  const dot = document.createElement('span');
+  dot.className = `connection-dot ${connected ? 'connected' : 'disconnected'}`;
+  // Remove old dot if exists
+  const oldDot = footerStream.querySelector('.connection-dot');
+  if (oldDot) oldDot.remove();
+  footerStream.prepend(dot);
+}
+
+// ─── Empty State Helpers ──────────────────────────────
+
+function renderEmptyState(container: HTMLElement, icon: string, label: string, actionLabel?: string, actionFn?: () => void) {
+  container.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-state-icon">${icon}</div>
+      <div class="empty-state-label">${escapeHtml(label)}</div>
+      ${actionLabel ? `<button class="empty-state-action">${escapeHtml(actionLabel)}</button>` : ''}
+    </div>
+  `;
+  if (actionLabel && actionFn) {
+    const btn = container.querySelector('.empty-state-action') as HTMLElement;
+    btn?.addEventListener('click', actionFn);
+  }
+}
+
 // ─── Stateful ANSI Escape to HTML Parser ─────────────
 function ansiToHtml(text: string): string {
+  // eslint-disable-next-line no-control-regex
   const ansiRegex = /\u001b\[([0-9;]*)m/g;
   let currentSpanOpen = false;
   let result = '';
@@ -231,7 +326,7 @@ function ansiToHtml(text: string): string {
   let isBold = false;
 
   function getSpanStyle() {
-    let styles: string[] = [];
+    const styles: string[] = [];
     if (fgColor) {
       styles.push(`color:${fgColor}`);
     }
@@ -305,7 +400,9 @@ function ansiToHtml(text: string): string {
 }
 
 function cleanAndColorAnsi(text: string): string {
-  let cleaned = text.replace(/\u001b\[[0-9;]*[a-lA-Ln-zN-Z]/g, '');
+  // eslint-disable-next-line no-control-regex
+  const cleanRegex = /\u001b\[[0-9;]*[a-lA-Ln-zN-Z]/g;
+  let cleaned = text.replace(cleanRegex, '');
   cleaned = cleaned.replace(/\r+/g, '');
   return ansiToHtml(cleaned);
 }
@@ -460,7 +557,7 @@ function setupScrollButton(container: HTMLElement): void {
 
 function updateHeader() {
   const mn = document.getElementById('model-name');
-  if (mn) mn.innerText = `MODEL // ${state.modelId || 'NONE'}`;
+  if (mn) mn.innerHTML = `MODEL // ${formatModelDisplay(state.modelId)}`;
   const pm = document.getElementById('perm-mode');
   if (pm)
     pm.innerText = `PERM // ${state.permissionMode || 'STANDARD'}`;
@@ -478,14 +575,19 @@ function updateFooter() {
   const fTurn = el('footer-turn');
   const fStream = el('footer-stream');
 
-  if (fModel) fModel.textContent = `MODEL // ${state.modelId || 'NONE'}`;
+  if (fModel) fModel.innerHTML = `MODEL // ${formatModelDisplay(state.modelId)}`;
   if (fMode) fMode.textContent = `MODE // ${state.permissionMode || 'STANDARD'}`;
   if (fTokens)
     fTokens.textContent = `T // P ${state.tokens.prompt.toLocaleString()} / C ${state.tokens.completion.toLocaleString()} / ${state.tokens.total.toLocaleString()}`;
   if (fSession)
     fSession.textContent = `SESSION // ${state.currentSessionId ? state.currentSessionId.slice(0, 8) : '--'}`;
   if (fTurn) fTurn.textContent = `TURN // ${state.turnCount}`;
-  if (fStream) fStream.classList.toggle('is-active', state.isStreaming);
+  if (fStream) {
+    fStream.classList.toggle('is-active', state.isStreaming);
+    // Preserve connection dot when updating
+    const hasDot = fStream.querySelector('.connection-dot');
+    if (!hasDot) updateConnectionStatus(true);
+  }
 }
 
 // ─── Context Sidebar ──────────────────────────────────
@@ -513,17 +615,21 @@ function updateContextPanel() {
   if (filesBody) {
     if (ctx.activeFile || ctx.openFiles.length > 0) {
       let html = '';
+      const changedFiles = typeof ctx.dirtyFiles === 'object' && Array.isArray(ctx.dirtyFiles) ? ctx.dirtyFiles : [];
+      const isChanged = (path: string) => changedFiles.some((df: string) => df.includes(path));
       if (ctx.activeFile) {
-        html += `<div class="context-file">
+        const changed = isChanged(ctx.activeFile.path);
+        html += `<div class="context-file ${changed ? 'changed' : ''}">
           <span class="context-file-path">&#x25B6; ${escapeHtml(ctx.activeFile.path)}</span>
-          <span class="context-file-lang">${ctx.activeFile.language}</span>
+          <span class="context-file-lang">${changed ? '<span class="context-file-change-indicator">&#x2713;</span>' : ctx.activeFile.language}</span>
         </div>`;
       }
       for (const f of ctx.openFiles) {
         if (f.path !== ctx.activeFile?.path) {
-          html += `<div class="context-file">
+          const changed = isChanged(f.path);
+          html += `<div class="context-file ${changed ? 'changed' : ''}">
             <span class="context-file-path">${escapeHtml(f.path)}</span>
-            <span class="context-file-lang">${f.language}</span>
+            <span class="context-file-lang">${changed ? '<span class="context-file-change-indicator">M</span>' : f.language}</span>
           </div>`;
         }
       }
@@ -564,6 +670,55 @@ function updateStreamingCursor() {
 
 // ─── Executing State ──────────────────────────────────
 
+function formatDuration(ms: number): string {
+  const seconds = Math.floor((ms / 1000) % 60);
+  const minutes = Math.floor((ms / (1000 * 60)) % 60);
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+function startStatusTimer() {
+  const statusEl = document.getElementById('tui-active-status');
+  if (!statusEl) return;
+  statusEl.classList.remove('hidden');
+
+  executionStartTime = Date.now();
+  const spinnerEl = statusEl.querySelector('.tui-status-spinner') as HTMLElement;
+  const timeEl = statusEl.querySelector('.tui-status-time') as HTMLElement;
+  const tokensEl = statusEl.querySelector('.tui-status-tokens') as HTMLElement;
+
+  const spinnerFrames = ['o', 'O', 'o', '.'];
+  let frameIndex = 0;
+
+  if (timeEl) timeEl.innerHTML = `&bull; 0s`;
+  if (tokensEl) tokensEl.innerHTML = `&bull; &darr; 0`;
+
+  statusTimer = setInterval(() => {
+    const elapsed = Date.now() - executionStartTime;
+    if (timeEl) timeEl.innerHTML = `&bull; ${formatDuration(elapsed)}`;
+    if (spinnerEl) {
+      spinnerEl.innerText = spinnerFrames[frameIndex];
+      frameIndex = (frameIndex + 1) % spinnerFrames.length;
+    }
+    if (tokensEl) {
+      tokensEl.innerHTML = `&bull; &darr; ${state.tokens.total.toLocaleString()}`;
+    }
+  }, 250);
+}
+
+function stopStatusTimer() {
+  if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+  const statusEl = document.getElementById('tui-active-status');
+  if (statusEl) {
+    statusEl.classList.add('hidden');
+  }
+}
+
 function setExecutingState(executing: boolean) {
   isExecuting = executing;
   state.isStreaming = executing;
@@ -581,6 +736,12 @@ function setExecutingState(executing: boolean) {
   }
   updateFooter();
   updateStreamingCursor();
+  if (executing) {
+    updateConnectionStatus(true);
+    startStatusTimer();
+  } else {
+    stopStatusTimer();
+  }
 }
 
 // ─── Enhanced Message Processing ──────────────────────
@@ -760,6 +921,19 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
   }
 
   div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsedContent}</div>`;
+
+  // Apply contextual styling to system messages
+  if (div.classList.contains('message-system')) {
+    const lower = m.content.toLowerCase();
+    if (lower.includes('**error:**') || lower.includes('error (exit')) {
+      div.classList.add('is-error');
+    } else if (lower.includes('_(') || lower.includes('cancelled')) {
+      div.classList.add('is-warning');
+    } else if (lower.includes('completed') || lower.includes('done') || lower.includes('✓')) {
+      div.classList.add('is-success');
+    }
+  }
+
   if (shouldScroll) {
     wasNearBottom = true;
     scrollToBottom(history);
@@ -783,7 +957,7 @@ function renderSessionList(sessions: SessionItem[]) {
   if (!list) return;
   switchPanel('sessions');
   if (sessions.length === 0) {
-    list.innerHTML = '<div class="session-empty">No recent sessions.</div>';
+    renderEmptyState(list, '\u2630', 'No recent sessions', 'Start a new session', () => sendAction('start'));
     return;
   }
   list.innerHTML = sessions
@@ -794,6 +968,7 @@ function renderSessionList(sessions: SessionItem[]) {
       <div class="session-info">
         <span class="session-label">${escapeHtml(s.label)}</span>
         <span class="session-meta">${s.model ? s.model.split('/').pop() : 'unknown'} \u00B7 ${s.id.slice(0, 8)}</span>
+        <span class="session-meta-timestamp">${s.startedAt ? new Date(s.startedAt).toLocaleDateString() : ''}</span>
       </div>
     </div>
   `,
@@ -806,7 +981,7 @@ function renderAgentList(agents: { name: string; task: string }[]) {
   if (!list) return;
   switchPanel('agents');
   if (agents.length === 0) {
-    list.innerHTML = '<div class="session-empty">No active agents.</div>';
+    renderEmptyState(list, '\u2691', 'No active agents', 'Run parallel agents', () => sendAction('start'));
     return;
   }
 
@@ -853,7 +1028,23 @@ function renderStatus(text: string) {
   const content = document.getElementById('status-content');
   if (!content) return;
   switchPanel('status');
-  content.textContent = text;
+  // Wrap status panel parent in terminal chrome
+  const statusPanel = document.getElementById('status-panel');
+  if (statusPanel && !statusPanel.querySelector('.status-terminal-bar')) {
+    const header = statusPanel.querySelector('.panel-header');
+    if (header) {
+      const bar = document.createElement('div');
+      bar.className = 'status-terminal-bar';
+      bar.innerHTML = `
+        <span class="status-terminal-dot close"></span>
+        <span class="status-terminal-dot minimize"></span>
+        <span class="status-terminal-dot maximize"></span>
+        <span class="status-terminal-title">cmd status</span>
+      `;
+      header.after(bar);
+    }
+  }
+  content.innerHTML = cleanAndColorAnsi(text);
 }
 
 // ─── Event Listeners ─────────────────────────────────
@@ -866,6 +1057,14 @@ function adjustTextareaHeight(input: HTMLTextAreaElement) {
   input.style.height = 'auto';
   const newHeight = Math.min(Math.max(input.scrollHeight, 60), 200);
   input.style.height = `${newHeight}px`;
+}
+
+function updateTasteUI() {
+  const toggle = document.getElementById('tui-taste-toggle');
+  if (toggle) {
+    toggle.innerHTML = state.continuousLearning ? '&#9745; TASTE' : '&#9634; TASTE';
+    toggle.classList.toggle('active', state.continuousLearning);
+  }
 }
 
 function hydrateUI() {
@@ -906,10 +1105,11 @@ function hydrateUI() {
   updateHeader();
   updateFooter();
   updateContextPanel();
+  updateTasteUI();
 }
 
 function attachEventListeners() {
-  // Action buttons
+  // Action buttons with loading state
   document.querySelectorAll('.action-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const action = (btn as HTMLElement).dataset.action;
@@ -921,6 +1121,16 @@ function attachEventListeners() {
         return;
       }
 
+      // Show loading state for actions that trigger CLI
+      if (['start', 'continue', 'pick-model', 'pick-permission', 'show-status', 'list-sessions'].includes(action)) {
+        btn.classList.add('loading');
+        setTimeout(() => btn.classList.remove('loading'), 3000);
+      }
+
+      if (action === 'list-agents') {
+        switchPanel('agents');
+        return;
+      }
       if (action === 'list-sessions') {
         sendAction('list-sessions');
       } else if (action === 'show-status') {
@@ -1065,7 +1275,74 @@ function attachEventListeners() {
   };
 
   sendBtn?.addEventListener('click', sendMessage);
+  let lastEscapeTime = 0;
   input?.addEventListener('keydown', (e: KeyboardEvent) => {
+    // 1. Shift+Tab: cycle permission mode
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      const current = state.permissionMode || 'standard';
+      let nextMode: 'standard' | 'plan' | 'auto-accept';
+      if (current === 'standard') nextMode = 'auto-accept';
+      else if (current === 'auto-accept') nextMode = 'plan';
+      else nextMode = 'standard';
+      sendAction('set-permission-mode', { permissionMode: nextMode });
+      return;
+    }
+
+    // 2. Ctrl+T: toggle Continuous Learning
+    if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      state.continuousLearning = !state.continuousLearning;
+      updateTasteUI();
+      saveState();
+      const statusText = state.continuousLearning ? 'Continuous learning enabled' : 'Continuous learning disabled';
+      const localMsg = {
+        id: 'sys-' + Date.now(),
+        role: 'system',
+        content: `_${statusText}_`,
+      };
+      appendMessage(localMsg);
+      addOrUpdateMessage(localMsg);
+      return;
+    }
+
+    // 3. Ctrl+O: toggle expanded outputs
+    if (e.key === 'o' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const details = document.querySelectorAll('details.step-accordion');
+      const anyOpen = Array.from(details).some(d => d.hasAttribute('open'));
+      details.forEach(d => {
+        if (anyOpen) d.removeAttribute('open');
+        else d.setAttribute('open', '');
+      });
+      return;
+    }
+
+    // 4. Alt+P (Option+P): pick model
+    if (e.key === 'p' && (e.altKey || e.metaKey)) {
+      e.preventDefault();
+      sendAction('pick-model');
+      return;
+    }
+
+    // 5. Escape: interrupt running CLI or rewind checkpoint
+    if (e.key === 'Escape') {
+      if (isExecuting) {
+        e.preventDefault();
+        sendAction('interrupt-execution');
+        return;
+      } else {
+        const now = Date.now();
+        if (now - lastEscapeTime < 400) {
+          e.preventDefault();
+          sendAction('checkpoint-restore');
+          lastEscapeTime = 0;
+          return;
+        }
+        lastEscapeTime = now;
+      }
+    }
+
     if (autocompleteActive) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -1106,6 +1383,20 @@ function attachEventListeners() {
 
   input?.addEventListener('click', () => {
     handleInputOrCursorChange(input);
+  });
+
+  document.getElementById('tui-taste-toggle')?.addEventListener('click', () => {
+    state.continuousLearning = !state.continuousLearning;
+    updateTasteUI();
+    saveState();
+    const statusText = state.continuousLearning ? 'Continuous learning enabled' : 'Continuous learning disabled';
+    const localMsg = {
+      id: 'sys-' + Date.now(),
+      role: 'system',
+      content: `_${statusText}_`,
+    };
+    appendMessage(localMsg);
+    addOrUpdateMessage(localMsg);
   });
 
   document.getElementById('autocomplete-list')?.addEventListener('click', (e) => {
@@ -1234,9 +1525,20 @@ function initUI() {
       <div class="panel-container">
         <div id="chat-panel" class="panel panel-active">
           <div class="chat-history" id="chat-history"></div>
+          <div id="tui-active-status" class="tui-status-line hidden">
+            <span class="tui-status-spinner">o</span>
+            <span class="tui-status-text">Hypothesizing... esc to interrupt</span>
+            <span class="tui-status-time">&bull; 0s</span>
+            <span class="tui-status-tokens">&bull; &darr; 0</span>
+          </div>
           <div class="chat-input-container">
             <div id="autocomplete-list" class="autocomplete-list hidden"></div>
             <textarea id="chat-input" placeholder="Type a message..."></textarea>
+            <div class="prompt-tui-bar">
+              <span class="tui-shortcut-help">? FOR SHORTCUTS</span>
+              <span class="tui-learning-status">[CTRL+T] CONTINUOUS LEARNING</span>
+              <span class="tui-taste-toggle" id="tui-taste-toggle">&#9634; TASTE</span>
+            </div>
             <div class="chat-input-row">
               <div class="qr-code"></div>
               <button id="send-btn">Execute</button>
@@ -1322,11 +1624,15 @@ function initUI() {
     state.currentSessionId = previousState.currentSessionId || null;
     state.turnCount = previousState.turnCount || 0;
     state.context = previousState.context || state.context;
+    if (!state.context.dirtyFiles) state.context.dirtyFiles = [];
     state.messages = previousState.messages || [];
     state.activePanel = previousState.activePanel || 'chat';
     state.inputDraft = previousState.inputDraft || '';
     state.agents = previousState.agents || [];
+    state.continuousLearning = previousState.continuousLearning !== undefined ? previousState.continuousLearning : state.continuousLearning;
     hydrateUI();
+  } else {
+    updateTasteUI();
   }
 }
 
@@ -1506,13 +1812,7 @@ window.addEventListener('message', (event: MessageEvent) => {
       }
 
       case 'Notification': {
-        const helpMsg = {
-          id: 'sys-' + Date.now(),
-          role: 'system',
-          content: payload.text,
-        };
-        appendMessage(helpMsg);
-        addOrUpdateMessage(helpMsg);
+        showToast(payload.text ?? '', 'info', 5000);
         break;
       }
 
@@ -1526,20 +1826,7 @@ window.addEventListener('message', (event: MessageEvent) => {
           typeof data?.message === 'string'
             ? data.message
             : 'A background task has finished execution.';
-        const html = `
-          <div class="diff-widget" style="border-color: var(--vscode-notificationsInfoIcon-foreground);">
-            <div class="diff-header" style="background: var(--vscode-notificationsInfoIcon-foreground); color: var(--vscode-editor-background);">
-              <span>&#x1F514; NOTIFICATION</span>
-            </div>
-            <div class="diff-content" style="padding: 8px;">
-              <strong>${escapeHtml(title)}</strong><br/>
-              ${escapeHtml(message)}
-            </div>
-          </div>
-        `;
-        const notificationMsg = { id: 'bg-' + Date.now(), role: 'system', content: html };
-        appendMessage(notificationMsg);
-        addOrUpdateMessage(notificationMsg);
+        showToast(`${title}: ${message}`, 'success', 6000);
         break;
       }
 
@@ -1565,6 +1852,7 @@ window.addEventListener('message', (event: MessageEvent) => {
         }));
         state.context.gitBranch = git?.branch ?? null;
         state.context.dirtyFilesCount = git?.dirtyFiles?.length ?? 0;
+        state.context.dirtyFiles = (git?.dirtyFiles as string[]) ?? [];
         saveState();
         updateContextPanel();
         break;

@@ -1,4 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("vscode", () => {
+  return {
+    workspace: {
+      getConfiguration: () => ({ get: vi.fn() })
+    }
+  };
+});
+
+import { buildSessionArgs } from "../cli/commands";
 
 function parseModelList(raw: string) {
   const models: { id: string; label?: string; provider?: string }[] = [];
@@ -101,5 +111,28 @@ claude-opus-4.8 Claude Opus 4.8
 
   it("returns empty array for empty input", () => {
     expect(parseModelList("")).toEqual([]);
+  });
+});
+
+describe("buildSessionArgs", () => {
+
+  it("correctly maps option flags into CLI arguments", () => {
+    const args = buildSessionArgs({
+      continueLast: true,
+      resume: "test-session",
+      plan: true,
+      autoAccept: false,
+      yolo: false,
+      model: "claude-3-opus",
+      permissionMode: "plan",
+    });
+    expect(args).toContain("-c");
+    expect(args).toContain("-r");
+    expect(args).toContain("test-session");
+    expect(args).toContain("--plan");
+    expect(args).toContain("-m");
+    expect(args).toContain("claude-3-opus");
+    expect(args).toContain("--permission-mode");
+    expect(args).toContain("plan");
   });
 });

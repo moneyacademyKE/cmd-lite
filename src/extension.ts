@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
-import { registerChatParticipant } from "./chat/participant";
+import { registerChatParticipant, setParticipantPermissionMode } from "./chat/participant";
 import {
   getActiveCwd,
   showStatusBarEnabled,
@@ -51,6 +51,7 @@ let currentSessionId: string | null = null;
 let currentIdeName: string | null = null;
 let ipcServer: IPCServer | null = null;
 let mcpServer: CmdMcpServer | null = null;
+let activeAbortController: AbortController | null = null;
 
 async function handleWebviewAction(
   msg: { type: "action"; action: string; payload?: Record<string, unknown> },
@@ -104,6 +105,29 @@ async function handleWebviewAction(
           params: { type: "permChanged", payload: { permissionMode: selected } }
         });
       }
+      break;
+    }
+    case "set-permission-mode": {
+      const mode = msg.payload?.permissionMode as "standard" | "plan" | "auto-accept" | undefined;
+      if (mode) {
+        setParticipantPermissionMode(mode);
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "permChanged", payload: { permissionMode: mode } }
+        });
+      }
+      break;
+    }
+    case "interrupt-execution": {
+      if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+      }
+      break;
+    }
+    case "checkpoint-restore": {
+      vscode.commands.executeCommand("cmd-lite.checkpoint.restore");
       break;
     }
     case "show-status": {
@@ -252,6 +276,7 @@ export function activate(context: vscode.ExtensionContext): void {
           chatProvider.dispatchSessionInfo(currentSessionId, turnCount);
         }
 
+        activeAbortController = new AbortController();
         try {
           const result = await runPrint(prompt, {
             cwd: getActiveCwd(),
@@ -275,6 +300,7 @@ export function activate(context: vscode.ExtensionContext): void {
               });
             },
             timeoutMs: 5 * 60 * 1000,
+            signal: activeAbortController.signal,
           });
 
           outputChannel.appendLine(`[webview] runPrint done: exit=${result.exitCode}, stdout=${result.stdout.length}b, streamed=${streamedAny}`);
@@ -340,6 +366,7 @@ export function activate(context: vscode.ExtensionContext): void {
             },
           });
         } finally {
+          activeAbortController = null;
           chatProvider.dispatchEvent({
             jsonrpc: "2.0",
             method: "webview/dispatchEvent",

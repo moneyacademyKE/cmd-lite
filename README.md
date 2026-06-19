@@ -125,5 +125,22 @@ npm run package
 
 ---
 
+### ⌨️ TUI Visual Parity & Keyboard Shortcuts
+
+CMD Lite features full parity with the `cmd` CLI TUI interface. You can perform operations mouse-free inside the webview using the following terminal shortcuts:
+
+| Shortcut | Action Description | Webview Impact |
+| :--- | :--- | :--- |
+| **`Shift+Tab`** | Cycle Permission Mode | Switches permission mode sequentially: `standard` → `auto-accept` → `plan` → `standard`. |
+| **`Ctrl+T`** | Toggle Continuous Learning | Enables/disables the `TASTE` profiling state and logs feedback. |
+| **`Ctrl+O`** | Toggle Expanded Outputs | Expands/collapses all thought and tool accordion blocks. |
+| **`Alt+P`** (`Option+P`) | Switch Model | Triggers the VS Code model quick pick switcher list. |
+| **`Escape`** (single) | Interrupt Execution | Instantly cancels the active CLI child process. |
+| **`Escape`** (double) | Rewind Session | Rewinds the active session to the last git checkpoint. |
+
+We also render a live **Hypothesizing Status Line** (`o Hypothesizing... esc to interrupt • <duration> • ⬇ <tokens count>`) above the chat input box to provide real-time execution duration feedback.
+
+---
+
 ## ⚖️ License
 MIT License for the extension frontend. The `cmd` CLI is proprietary (© Command Code, Inc.).

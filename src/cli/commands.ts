@@ -59,6 +59,7 @@ export async function runPrint(
     resume?: string;
     timeoutMs?: number;
     onStdoutChunk?: (chunk: string) => void;
+    signal?: AbortSignal;
   },
 ): Promise<CliResult> {
   const args: string[] = ["-p", prompt, "--yolo", "--auto-accept"];
@@ -75,6 +76,7 @@ export async function runPrint(
     cwd: options.cwd,
     timeoutMs: options.timeoutMs,
     onStdoutChunk: options.onStdoutChunk,
+    signal: options.signal,
   });
 
   // Create a pre-flight git checkpoint before file-modifying operations
