@@ -140,7 +140,7 @@ Safety: 8MB buffer cap, 4MB message cap, 16 connection cap, 60s idle timeout, `0
 | Socket cleanup before start | ❌ | ✅ |
 | OutputChannel singleton | ❌ | ✅ |
 | Chat participant (`@cmd`) + slash commands | ❌ | ✅ |
-| LM Tools (3 registered) | ❌ | ✅ |
+| LM Tools (7 registered) | ❌ | ✅ |
 | Taste sidebar + FileSystemWatcher | ❌ | ✅ |
 | Status bar (mode/model/busy) | ❌ | ✅ |
 | Model / permission pickers | ❌ | ✅ |
@@ -156,7 +156,8 @@ Safety: 8MB buffer cap, 4MB message cap, 16 connection cap, 60s idle timeout, `0
 | CLI validation on activate | ❌ | ✅ |
 | Config change reactivity | ❌ | ✅ |
 | Multi-workspace `getActiveCwd` | ❌ | ✅ |
-| Tests | ✅ (vitest, unknown count) | ✅ (31 tests, 5 files) |
+| Tests | ✅ (vitest, unknown count) | ✅ (38 tests, 6 files) |
+| CI Pipeline (`.github/workflows`) | ❌ | ✅ |
 | Bundled + auto-installed with CLI | ✅ | ❌ |
 | `openInTerminal` command | ✅ | ❌ (replaced by createTerminal) |
 
@@ -166,17 +167,14 @@ Safety: 8MB buffer cap, 4MB message cap, 16 connection cap, 60s idle timeout, `0
 
 | # | Gap | Impact | Effort |
 |---|---|---|---|
-| 1 | No `"test"` script + no CI | High | Low |
-| 2 | `eslint` missing from devDependencies | High | Low |
-| 3 | No integration tests (spawn, IPC, chat, LM tools) | High | High |
-| 4 | No socket authentication | Medium | Medium |
-| 5 | No CLI version compatibility check | Medium | Low |
-| 6 | Missing LM tools (getGitContext, getOpenFiles, listModels) | Medium | Medium |
-| 7 | No inline diffs in chat | Medium | High |
-| 8 | No chat history persistence | Low | Medium |
-| 9 | No launch.json / pre-commit hooks | Low | Low |
-| 10 | ANSI: only SGR codes stripped | Low | Low |
-| 11 | IPC is read-only | Low | High |
+| 1 | No integration tests (spawn, IPC, chat, LM tools) | High | High |
+| 2 | No socket authentication | Medium | Medium |
+| 3 | No CLI version compatibility check | Medium | Low |
+| 4 | No inline diffs in chat | Medium | High |
+| 5 | No chat history persistence | Low | Medium |
+| 6 | No pre-commit hooks | Low | Low |
+| 7 | ANSI: only SGR codes stripped | Low | Low |
+| 8 | IPC is read-only | Low | High |
 
 ---
 
