@@ -49,3 +49,7 @@
 ### Defensive Architecture: Framework Rejection Pattern
 - **Context**: When building stateless, targeted Webview UIs (like "Thin Glass" patterns), developers often propose migrating to complex frontend frameworks (e.g., SolidJS, React) or Web Worker proxies (e.g., Partytown) preemptively.
 - **Solution**: Subject all adoptions to a Rich Hickey Gap Analysis. If the architecture adds massive incidental complexity (e.g., JSX compilation, CSP proxying) to solve problems that don't exist in the current domain (e.g., 3rd-party script blocking, vast local UI state), decisively reject the adoption. Protect the zero-dependency baseline.
+
+### Switch Case Block Scoping Pattern
+- **Context**: When building Redux-style reducers or handling JSON-RPC dispatch events in `switch` statements, developers often need to declare variables (`const`, `let`) local to a specific `case`.
+- **Solution**: Always wrap `case` clauses containing lexical declarations in block scopes `{}`. This satisfies `no-case-declarations` lint rules, prevents variable hoisting bugs across cases, and keeps the code clean without disabling linting.
