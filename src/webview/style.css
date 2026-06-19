@@ -1,7 +1,7 @@
 :root {
   --bg-color: var(--vscode-terminal-background, #050505);
   --fg-color: var(--vscode-terminal-foreground, #E0E0E0);
-  --accent: var(--vscode-terminal-ansiGreen, #00FF41);
+  --accent: var(--vscode-terminal-ansiMagenta, #A855F7);
   --grid-color: var(--vscode-editorGroup-border, rgba(255, 255, 255, 0.05));
   --border-color: var(--vscode-focusBorder, #333333);
   --font-mono: var(--vscode-editor-font-family), monospace;
@@ -177,7 +177,7 @@ textarea:focus {
   outline: 1px solid var(--vscode-focusBorder, var(--accent));
   outline-offset: -1px;
   border-color: var(--accent);
-  background: rgba(0, 255, 65, 0.05);
+  background: rgba(168, 85, 247, 0.05);
 }
 
 textarea::placeholder {
@@ -355,7 +355,7 @@ button:hover::before {
 
 .session-item:hover {
   border-color: var(--accent);
-  background: rgba(0, 255, 65, 0.05);
+  background: rgba(168, 85, 247, 0.05);
 }
 
 .session-icon {
@@ -539,7 +539,7 @@ button:hover::before {
 
 /* Drag and Drop Overlay */
 .dropzone-active {
-  background: rgba(0, 255, 65, 0.1) !important;
+  background: rgba(168, 85, 247, 0.1) !important;
   border: 2px dashed var(--accent) !important;
 }
 
@@ -636,7 +636,7 @@ button:hover::before {
 }
 
 .context-file:hover {
-  background: rgba(0, 255, 65, 0.08);
+  background: rgba(168, 85, 247, 0.08);
 }
 
 .context-file-path {
@@ -693,6 +693,37 @@ button:hover::before {
 
 .footer-item {
   white-space: nowrap;
+}
+
+/* Scroll-to-bottom button */
+.scroll-bottom-btn {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  z-index: 20;
+  font-size: 9px;
+  padding: 4px 10px;
+  background: var(--bg-color);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  font-family: var(--font-mono);
+}
+.scroll-bottom-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.scroll-bottom-btn:hover {
+  background: var(--accent);
+  color: var(--bg-color);
+}
+.scroll-bottom-btn::before {
+  display: none;
 }
 
 /* Streaming cursor blink in footer */
@@ -764,7 +795,7 @@ button:hover::before {
 }
 
 .step-accordion summary:hover {
-  background: rgba(0, 255, 65, 0.05);
+  background: rgba(168, 85, 247, 0.05);
 }
 
 .step-accordion[open] summary {
@@ -841,3 +872,191 @@ button:hover::before {
 .sidebar::-webkit-scrollbar-track { background: var(--bg-color); }
 .sidebar::-webkit-scrollbar-thumb { background: var(--border-color); }
 .sidebar::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ─── AUTOCOMPLETE POPOVER ─────────────────────── */
+
+.autocomplete-list {
+  position: absolute;
+  bottom: 120px;
+  left: 20px;
+  right: 20px;
+  background: var(--bg-color);
+  border: 1px solid var(--accent);
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+.autocomplete-list.hidden {
+  display: none;
+}
+
+.autocomplete-item {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--fg-color);
+  cursor: pointer;
+  border-bottom: 1px solid var(--grid-color);
+  text-align: left;
+}
+
+.autocomplete-item.selected, .autocomplete-item:hover {
+  background: var(--accent);
+  color: var(--bg-color);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+/* ─── KANBAN BOARD FOR AGENTS ──────────────────── */
+
+.kanban-board {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  flex: 1;
+  overflow-x: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 140px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.kanban-column-title {
+  padding: 6px 10px;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+}
+
+.kanban-cards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kanban-card {
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-color);
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.kanban-card:hover {
+  border-color: var(--accent);
+}
+
+.kanban-card-title {
+  color: var(--fg-color);
+  font-weight: bold;
+}
+
+.kanban-card-desc {
+  font-size: 8px;
+  color: var(--border-color);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ─── CODE CONTAINER & SYNTAX HIGHLIGHTING ─────── */
+
+.code-container {
+  margin: 10px 0;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+
+.code-lang {
+  color: var(--border-color);
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.copy-code-btn {
+  background: transparent;
+  color: var(--fg-color);
+  border: 1px solid var(--border-color);
+  font-size: 9px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: all 0.15s;
+}
+
+.copy-code-btn:hover {
+  background: var(--accent);
+  color: var(--bg-color);
+  border-color: var(--accent);
+}
+
+.copy-code-btn::before {
+  display: none;
+}
+
+/* Code tokens */
+.token-comment {
+  color: var(--vscode-debugConsole-infoForeground, #6A9955);
+  font-style: italic;
+}
+
+.token-string {
+  color: var(--vscode-terminal-ansiYellow, #CE9178);
+}
+
+.token-keyword {
+  color: var(--vscode-terminal-ansiMagenta, #C586C0);
+  font-weight: bold;
+}
+
+.token-number {
+  color: var(--vscode-terminal-ansiCyan, #B5CEA8);
+}
+
+.message-content pre {
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Improve textarea layout for auto-growing */
+textarea {
+  min-height: 60px;
+  max-height: 200px;
+  overflow-y: auto;
+  transition: height 0.1s ease;
+}

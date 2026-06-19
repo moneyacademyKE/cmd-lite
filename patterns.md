@@ -99,3 +99,45 @@
   1. **Simplicity over Easiness**: Does the tool decomplect domains? (e.g. `bb` separates scripts from TS compilation configs).
   2. **Immutability over Mutation**: Is state explicitly managed and minimal? Eliminate dead code and dead state immediately.
   3. **Data Verification**: Is the data shape guaranteed or casually assumed? (Reject `any`).
+
+---
+
+## Decoupled Webview Input Router Pattern
+- **Context**: Intercepting `/` commands, `!` bash commands, and `@` file mentions usually complects text input parsing with execution dispatch logic.
+- **Solution**: Decouple parsing from execution at the webview input boundary. A lightweight input analyzer isolates local visual feedback (popovers/comboboxes) and dynamically routes prompt sub-types (`isBash`, `plan`) to different IPC commands, rather than compiling them together inside a single generic chat packet.
+
+---
+
+## Visual Kanban Task Board Mapping Pattern
+- **Context**: Parallel multi-agent setups emit linear lists of status items, but presenting these raw items to the user obscures the overall workflow.
+- **Solution**: Group linear agents dynamically based on lexical heuristics in name/task descriptions to map them to functional pipeline columns (Planning, Execution, Verification). This allows visual progress boards without introducing new state layers on the host backend.
+
+---
+
+## Direct Webview Bash Terminal Pattern
+- **Context**: A user wishes to run standard terminal scripts (`npm test`) directly from the webview, but routing it through the LLM pipeline creates massive latency and security vulnerabilities.
+- **Solution**: Route `!` prefixes to direct process spawning on the extension host, letting child processes execute natively in the active workspace and streaming stdout/stderr back in real-time. This provides shell parity securely.
+
+---
+
+## Webview State Persistence (DOM Lifecycle Recovery) Pattern
+- **Context**: Webview panels are frequently destroyed and recreated by the IDE lifecycle (tab switching, panel collapsing), wiping temporal state (message history, text drafts, active panel, logs).
+- **Solution**: Decouple state persistence from DOM lifecycle. Cache the state object as a pure JSON data structure using VS Code's native `getState`/`setState` API, and restore/rehydrate the UI elements and scroll positions during initialization.
+
+---
+
+## Stateful ANSI Escape sequence colorization Pattern
+- **Context**: Continuous logs from bash runs (e.g. `StdoutChunk`) stream color sequences (`\u001b[32m`), which render as unreadable characters in normal pre tags.
+- **Solution**: Maintain a stateful ANSI SGR parser that converts ANSI escape patterns into HTML spans using standard VS Code terminal color theme variables (e.g. `var(--vscode-terminal-ansiRed)`).
+
+---
+
+## Zero-Dependency Regex Tokenization Pattern (Syntax Highlighting)
+- **Context**: Text code blocks inside assistant markdown outputs require syntax highlighting for readability, but importing heavy client-side libraries (like standard PrismJS packages) complects bundlers and slows load times.
+- **Solution**: Implement a lightweight, O(N) regex tokenization function that parses code inputs into standard token scopes (comments, keywords, strings, numbers) and styles them using VS Code theme tokens.
+
+---
+
+## Copy-to-Clipboard Button Delegation Pattern
+- **Context**: Adding click handlers to every code block in chat logs creates high DOM listener count and memory leaks.
+- **Solution**: Use event delegation on a single top-level container to catch clicks on copy buttons, using `encodeURIComponent`/`decodeURIComponent` to safely bridge raw code data in attributes.

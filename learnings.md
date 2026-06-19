@@ -99,3 +99,14 @@ To install and run this extension:
   1. **Decomplected Boundaries**: Ensure tooling logic does not share configuration space with application build rules (e.g., using `bb` instead of Node).
   2. **Immutability & Dead Code**: Remove all unused mutable state (e.g., `activePanel`) to reduce cognitive load.
   3. **Data Verification**: Eliminate `any` casts. Always verify payloads explicitly via `unknown` narrowing or specs.
+
+## Input Stream & Visual Progress Decoupling (v0.1.2)
+- **Decoupled Autocomplete Tokenization**: Rather than complecting the LLM prompt execution logic with UI auto-completion state, we separate them at the webview level. Autocomplete triggers (`/`, `@`, `!`) are intercepted locally and filtered against read-only state payloads (like open files or static commands), presenting an autocomplete popover without notifying or blocking the extension host.
+- **Direct Terminal Routing**: In matching Command Code CLI's `!` bash mode, we intercept inputs starting with `!` and route them directly to a child process spawn routine on the extension host. This allows commands to run and stream output back in real-time, bypasses the LLM pipeline, and maintains a clean boundary between natural language tasks and shell processes.
+- **Visual Kanban Progression Mapping**: Instead of displaying background parallel agents linearly, we dynamically classify their task states using name and description heuristics into columns (Planning, Execution, Verification). This allows multi-agent visualization without changing the underlying JSON payload structures.
+
+## Webview SOTA Improvements (v0.1.3)
+- **Webview State Persistence**: We solved the state-loss problem where collapsing the sidebar or switching tabs destroyed the webview iframe. By serializing structural message histories, active tab selections, log status contents, and input area drafts to the native `vscode.getState()` on update, and restoring them during instantiation, the user experience becomes seamless without memory-bloated frameworks.
+- **Stateful ANSI Escape sequence colorization**: Spawning CLI bash outputs (like test runs) streams escape sequences (`\u001b[32m`) which look corrupt in text blocks. Implementing a stateful regex ANSI parser translates colors and bold parameters cleanly to standard inline styled span tags referencing VS Code terminal theme color variables (e.g. `var(--vscode-terminal-ansiGreen)`).
+- **Zero-Dependency Code Highlighting**: To support syntax formatting on assistant output code blocks, we implemented a custom O(N) regex tokenizer inside the webview JS, bypassing heavy prismjs or highlight.js dynamic loading and avoiding compile pipeline overhead.
+- **Event-Delegated Clipboard Copying**: Hover copying is added to code containers. Using event delegation at the app level catches copy button clicks without leaking memory from individual element listeners.

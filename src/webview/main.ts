@@ -28,6 +28,18 @@ interface ContextInfo {
   diagnosticsCount: number;
 }
 
+interface MessageItem {
+  id: string;
+  role: string;
+  content: string;
+  raw?: string;
+  isImage?: boolean;
+  isDiffProposal?: boolean;
+  dataUri?: string;
+  diffText?: string;
+  diffResponse?: 'accept' | 'reject';
+}
+
 const state: {
   tokens: { prompt: number; completion: number; total: number };
   modelId: string;
@@ -38,6 +50,10 @@ const state: {
   turnCount: number;
   isStreaming: boolean;
   context: ContextInfo;
+  messages: MessageItem[];
+  activePanel: 'chat' | 'sessions' | 'status' | 'agents';
+  inputDraft: string;
+  agents: { name: string; task: string }[];
 } = {
   tokens: { prompt: 0, completion: 0, total: 0 },
   modelId: '',
@@ -54,9 +70,146 @@ const state: {
     dirtyFilesCount: 0,
     diagnosticsCount: 0,
   },
+  messages: [],
+  activePanel: 'chat',
+  inputDraft: '',
+  agents: [],
 };
 
+function saveState() {
+  vscode.setState({
+    tokens: state.tokens,
+    modelId: state.modelId,
+    permissionMode: state.permissionMode,
+    statusText: state.statusText,
+    sessions: state.sessions,
+    currentSessionId: state.currentSessionId,
+    turnCount: state.turnCount,
+    context: state.context,
+    messages: state.messages,
+    activePanel: state.activePanel,
+    inputDraft: state.inputDraft,
+    agents: state.agents,
+  });
+}
+
+function addOrUpdateMessage(m: MessageItem) {
+  const idx = state.messages.findIndex(item => item.id === m.id);
+  if (idx !== -1) {
+    state.messages[idx] = { ...state.messages[idx], ...m };
+  } else {
+    state.messages.push(m);
+  }
+  saveState();
+}
+
 let isExecuting = false;
+
+// Autocomplete State
+let autocompleteActive = false;
+let autocompleteItems: string[] = [];
+let autocompleteSelectedIndex = 0;
+let autocompleteTokenStart = 0;
+let autocompleteTokenEnd = 0;
+let autocompleteTokenType: '/' | '@' | '!' | null = null;
+
+function getActiveToken(text: string, caretPos: number): { type: '/' | '@' | '!' | null; query: string; start: number; end: number } {
+  let start = caretPos;
+  while (start > 0 && !/\s/.test(text[start - 1])) {
+    start--;
+  }
+  const token = text.slice(start, caretPos);
+  if (token.startsWith('@')) {
+    return { type: '@', query: token.slice(1), start, end: caretPos };
+  }
+  if (token.startsWith('/')) {
+    return { type: '/', query: token.slice(1), start, end: caretPos };
+  }
+  if (token.startsWith('!')) {
+    return { type: '!', query: token.slice(1), start, end: caretPos };
+  }
+  return { type: null, query: '', start, end: caretPos };
+}
+
+function updateAutocompleteList() {
+  const listEl = document.getElementById('autocomplete-list');
+  if (!listEl) return;
+
+  if (!autocompleteActive || autocompleteItems.length === 0) {
+    listEl.classList.add('hidden');
+    return;
+  }
+
+  listEl.classList.remove('hidden');
+  listEl.innerHTML = autocompleteItems.map((item, index) => {
+    const isSelected = index === autocompleteSelectedIndex;
+    const prefix = autocompleteTokenType === '@' ? '@' : autocompleteTokenType === '/' ? '/' : '!';
+    return `<div class="autocomplete-item ${isSelected ? 'selected' : ''}" data-index="${index}">${prefix}${escapeHtml(item)}</div>`;
+  }).join('');
+}
+
+function insertAutocompleteSelection() {
+  const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+  if (!input) return;
+
+  const prefix = autocompleteTokenType === '@' ? '@' : autocompleteTokenType === '/' ? '/' : '!';
+  const val = autocompleteItems[autocompleteSelectedIndex] + ' ';
+  const text = input.value;
+  const before = text.slice(0, autocompleteTokenStart);
+  const after = text.slice(autocompleteTokenEnd);
+
+  input.value = before + prefix + val + after;
+  input.selectionStart = input.selectionEnd = autocompleteTokenStart + prefix.length + val.length;
+  
+  hideAutocomplete();
+  input.focus();
+}
+
+function hideAutocomplete() {
+  autocompleteActive = false;
+  autocompleteItems = [];
+  autocompleteSelectedIndex = 0;
+  updateAutocompleteList();
+}
+
+function handleInputOrCursorChange(input: HTMLTextAreaElement) {
+  const caretPos = input.selectionStart;
+  const text = input.value;
+  const token = getActiveToken(text, caretPos);
+
+  if (!token.type) {
+    hideAutocomplete();
+    return;
+  }
+
+  let items: string[] = [];
+  if (token.type === '/') {
+    const all = ['help', 'clear', 'plan', 'taste', 'sessions', 'agents'];
+    items = all.filter(cmd => cmd.startsWith(token.query));
+  } else if (token.type === '@') {
+    const allFiles = new Set<string>();
+    if (state.context.activeFile) allFiles.add(state.context.activeFile.path);
+    for (const f of state.context.openFiles) {
+      allFiles.add(f.path);
+    }
+    items = Array.from(allFiles).filter(p => p.toLowerCase().includes(token.query.toLowerCase()));
+  } else if (token.type === '!') {
+    const all = ['npm test', 'npm run build', 'git status', 'git diff'];
+    items = all.filter(cmd => cmd.toLowerCase().startsWith(token.query.toLowerCase()));
+  }
+
+  if (items.length > 0) {
+    autocompleteActive = true;
+    autocompleteItems = items;
+    autocompleteSelectedIndex = Math.min(autocompleteSelectedIndex, items.length - 1);
+    autocompleteTokenStart = token.start;
+    autocompleteTokenEnd = token.end;
+    autocompleteTokenType = token.type;
+    updateAutocompleteList();
+  } else {
+    hideAutocomplete();
+  }
+}
 
 // ─── Utilities ───────────────────────────────────────
 
@@ -64,6 +217,207 @@ function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ─── Stateful ANSI Escape to HTML Parser ─────────────
+function ansiToHtml(text: string): string {
+  const ansiRegex = /\u001b\[([0-9;]*)m/g;
+  let currentSpanOpen = false;
+  let result = '';
+  let lastIndex = 0;
+  let match;
+  
+  let fgColor: string | null = null;
+  let isBold = false;
+
+  function getSpanStyle() {
+    let styles: string[] = [];
+    if (fgColor) {
+      styles.push(`color:${fgColor}`);
+    }
+    if (isBold) {
+      styles.push('font-weight:bold');
+    }
+    return styles.length > 0 ? `style="${styles.join(';')}"` : '';
+  }
+
+  while ((match = ansiRegex.exec(text)) !== null) {
+    const plainText = text.substring(lastIndex, match.index);
+    result += escapeHtml(plainText);
+    
+    const codes = match[1].split(';').map(Number);
+    for (const code of codes) {
+      if (code === 0) {
+        fgColor = null;
+        isBold = false;
+      } else if (code === 1) {
+        isBold = true;
+      } else if (code === 22) {
+        isBold = false;
+      } else if (code >= 30 && code <= 37) {
+        const colors = [
+          'var(--vscode-terminal-ansiBlack)',
+          'var(--vscode-terminal-ansiRed)',
+          'var(--vscode-terminal-ansiGreen)',
+          'var(--vscode-terminal-ansiYellow)',
+          'var(--vscode-terminal-ansiBlue)',
+          'var(--vscode-terminal-ansiMagenta)',
+          'var(--vscode-terminal-ansiCyan)',
+          'var(--vscode-terminal-ansiWhite)'
+        ];
+        fgColor = colors[code - 30];
+      } else if (code === 39) {
+        fgColor = null;
+      } else if (code >= 90 && code <= 97) {
+        const brightColors = [
+          'var(--vscode-terminal-ansiBrightBlack)',
+          'var(--vscode-terminal-ansiBrightRed)',
+          'var(--vscode-terminal-ansiBrightGreen)',
+          'var(--vscode-terminal-ansiBrightYellow)',
+          'var(--vscode-terminal-ansiBrightBlue)',
+          'var(--vscode-terminal-ansiBrightMagenta)',
+          'var(--vscode-terminal-ansiBrightCyan)',
+          'var(--vscode-terminal-ansiBrightWhite)'
+        ];
+        fgColor = brightColors[code - 90];
+      }
+    }
+    
+    if (currentSpanOpen) {
+      result += '</span>';
+      currentSpanOpen = false;
+    }
+    
+    const styleAttr = getSpanStyle();
+    if (styleAttr) {
+      result += `<span ${styleAttr}>`;
+      currentSpanOpen = true;
+    }
+    
+    lastIndex = ansiRegex.lastIndex;
+  }
+  
+  result += escapeHtml(text.substring(lastIndex));
+  if (currentSpanOpen) {
+    result += '</span>';
+  }
+  return result;
+}
+
+function cleanAndColorAnsi(text: string): string {
+  let cleaned = text.replace(/\u001b\[[0-9;]*[a-lA-Ln-zN-Z]/g, '');
+  cleaned = cleaned.replace(/\r+/g, '');
+  return ansiToHtml(cleaned);
+}
+
+// ─── Custom Regex Code Syntax Highlighter ───────────
+function highlightTokens(rawCode: string, lang: string): string {
+  let commentRegex = /(\/\/.*)|(#.*)|(;.*)/;
+  if (lang === 'clojure' || lang === 'clj') {
+    commentRegex = /(;.*)/;
+  } else if (lang === 'python' || lang === 'py') {
+    commentRegex = /(#.*)/;
+  } else {
+    commentRegex = /(\/\/.*)|(\/\*[\s\S]*?\*\/)/;
+  }
+  
+  const stringRegex = /("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])*')|(`(?:\\.|[^`\\])*`)/;
+  const numberRegex = /\b(\d+(?:\.\d+)?)\b/;
+  const keywords = /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|class|interface|type|extends|implements|import|export|from|as|new|this|typeof|instanceof|async|await|try|catch|finally|throw|debugger|defn|def|fn|let|loop|recur|if-not|when|when-not|cond|case|nil|true|false|defmacro|ns|require|use|import|defmulti|defmethod|lambda|import|from|def|class|return|if|elif|else|for|while|try|except|finally|raise|assert|pass|with|as|yield|lambda|in|is|not|and|or|css|html)\b/;
+
+  const rules = [
+    { type: 'comment', regex: commentRegex },
+    { type: 'string', regex: stringRegex },
+    { type: 'keyword', regex: keywords },
+    { type: 'number', regex: numberRegex }
+  ];
+  
+  let index = 0;
+  let html = '';
+  
+  while (index < rawCode.length) {
+    let earliestMatch: { rule: typeof rules[0]; match: RegExpExecArray } | null = null;
+    
+    for (const rule of rules) {
+      const regex = new RegExp(rule.regex.source, rule.regex.flags);
+      const m = regex.exec(rawCode.slice(index));
+      if (m && m.index !== undefined) {
+        if (!earliestMatch || m.index < earliestMatch.match.index) {
+          earliestMatch = { rule, match: m };
+        }
+      }
+    }
+    
+    if (earliestMatch) {
+      const matchIndex = earliestMatch.match.index + index;
+      const matchText = earliestMatch.match[0];
+      
+      if (matchIndex > index) {
+        html += escapeHtml(rawCode.substring(index, matchIndex));
+      }
+      
+      html += `<span class="token-${earliestMatch.rule.type}">${escapeHtml(matchText)}</span>`;
+      index = matchIndex + matchText.length;
+    } else {
+      html += escapeHtml(rawCode.substring(index));
+      break;
+    }
+  }
+  
+  return html;
+}
+
+function highlightCode(code: string, lang: string): string {
+  const normalizedLang = (lang || '').toLowerCase().trim();
+  if (!normalizedLang) {
+    return escapeHtml(code);
+  }
+  if (['javascript', 'typescript', 'js', 'ts', 'json', 'clojure', 'clj', 'python', 'py', 'css', 'html'].includes(normalizedLang)) {
+    return highlightTokens(code, normalizedLang);
+  }
+  return escapeHtml(code);
+}
+
+// ─── marked custom renderer for syntax highlighting and copy button ───
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      const highlighted = highlightCode(text, lang || '');
+      const hasLang = !!lang;
+      return `
+        <div class="code-container">
+          <div class="code-header">
+            <span class="code-lang">${escapeHtml(lang || 'code')}</span>
+            <button class="copy-code-btn" data-code="${encodeURIComponent(text)}">COPY</button>
+          </div>
+          <pre><code class="${hasLang ? 'language-' + escapeHtml(lang) : ''}">${highlighted}</code></pre>
+        </div>
+      `;
+    }
+  }
+});
+
+// ─── Smart Scroll ─────────────────────────────────
+
+function isNearBottom(el: HTMLElement, threshold = 150): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+}
+
+function scrollToBottom(el: HTMLElement): void {
+  el.scrollTop = el.scrollHeight;
+}
+
+function setupScrollButton(container: HTMLElement): void {
+  const btn = document.createElement('button');
+  btn.id = 'scroll-bottom-btn';
+  btn.className = 'scroll-bottom-btn';
+  btn.textContent = '\u25BC BOTTOM';
+  btn.addEventListener('click', () => scrollToBottom(container));
+  container.parentElement?.appendChild(btn);
+
+  container.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', !isNearBottom(container));
+  });
 }
 
 // ─── Footer Status Bar ────────────────────────────────
@@ -154,7 +508,7 @@ function updateStreamingCursor() {
       cursor.id = 'streaming-cursor';
       cursor.className = 'streaming-cursor';
       history.appendChild(cursor);
-      history.scrollTop = history.scrollHeight;
+      scrollToBottom(history);
     }
   } else {
     if (existing) existing.remove();
@@ -184,9 +538,41 @@ function setExecutingState(executing: boolean) {
 
 // ─── Enhanced Message Processing ──────────────────────
 
+function renderDiffProposalHtml(id: string, diffText: string, response?: 'accept' | 'reject'): string {
+  if (response) {
+    return `
+      <div class="diff-widget">
+        <div class="diff-header">
+          <span>PROPOSAL</span>
+          <div class="diff-actions">
+            <span style="color:var(--accent)">[${response.toUpperCase()}]</span>
+          </div>
+        </div>
+        <div class="diff-content">${escapeHtml(diffText)
+          .replace(/^(\+.*)$/gm, '<span class="diff-line add">$1</span>')
+          .replace(/^(-.*)$/gm, '<span class="diff-line sub">$1</span>')}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="diff-widget">
+      <div class="diff-header">
+        <span>PROPOSAL</span>
+        <div class="diff-actions">
+          <button class="diff-btn accept" data-id="${id}">ACCEPT</button>
+          <button class="diff-btn reject" data-id="${id}">REJECT</button>
+        </div>
+      </div>
+      <div class="diff-content">${escapeHtml(diffText)
+        .replace(/^(\+.*)$/gm, '<span class="diff-line add">$1</span>')
+        .replace(/^(-.*)$/gm, '<span class="diff-line sub">$1</span>')}</div>
+    </div>
+  `;
+}
+
 function processMessageContent(raw: string): string {
   // If it's already HTML (images or diff widgets), return as-is
-  if (raw.startsWith('<img') || raw.startsWith('<div class="diff-widget"')) {
+  if (raw.startsWith('<img') || raw.startsWith('<div class="diff-widget"') || raw.startsWith('<div class="code-container"')) {
     return raw;
   }
 
@@ -269,7 +655,7 @@ function appendMessage(m: { id: string; role: string; content: string }) {
   }
 
   div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsedContent}</div>`;
-  history.scrollTop = history.scrollHeight;
+  if (isNearBottom(history)) scrollToBottom(history);
 }
 
 // ─── Panel System ─────────────────────────────────────
@@ -278,6 +664,8 @@ function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents') {
   document.querySelectorAll('.panel').forEach((p) => p.classList.remove('panel-active'));
   const target = document.getElementById(`${panel}-panel`);
   if (target) target.classList.add('panel-active');
+  state.activePanel = panel;
+  saveState();
 }
 
 // ─── Renderers ────────────────────────────────────────
@@ -313,19 +701,44 @@ function renderAgentList(agents: { name: string; task: string }[]) {
     list.innerHTML = '<div class="session-empty">No active agents.</div>';
     return;
   }
-  list.innerHTML = agents
-    .map(
-      (a) => `
-    <div class="agent-item">
-      <span class="agent-icon">&#x2699;</span>
-      <div class="agent-info">
-        <span class="agent-name">${escapeHtml(a.name)}</span>
-        <span class="agent-task">${escapeHtml(a.task)}</span>
+
+  const planning: typeof agents = [];
+  const execution: typeof agents = [];
+  const verification: typeof agents = [];
+
+  for (const a of agents) {
+    const key = (a.name + ' ' + a.task).toLowerCase();
+    if (key.includes('plan') || key.includes('design') || key.includes('analyze')) {
+      planning.push(a);
+    } else if (key.includes('test') || key.includes('doc') || key.includes('verify') || key.includes('lint')) {
+      verification.push(a);
+    } else {
+      execution.push(a);
+    }
+  }
+
+  const renderCol = (title: string, items: typeof agents) => {
+    const cards = items.map(a => `
+      <div class="kanban-card">
+        <div class="kanban-card-title">${escapeHtml(a.name)}</div>
+        <div class="kanban-card-desc">${escapeHtml(a.task)}</div>
       </div>
+    `).join('');
+    return `
+      <div class="kanban-column">
+        <div class="kanban-column-title">${title} (${items.length})</div>
+        <div class="kanban-cards">${cards || '<div class="session-empty" style="padding:10px;">Idle</div>'}</div>
+      </div>
+    `;
+  };
+
+  list.innerHTML = `
+    <div class="kanban-board">
+      ${renderCol('Planning', planning)}
+      ${renderCol('Execution', execution)}
+      ${renderCol('Verification', verification)}
     </div>
-  `,
-    )
-    .join('');
+  `;
 }
 
 function renderStatus(text: string) {
@@ -339,6 +752,48 @@ function renderStatus(text: string) {
 
 function sendAction(action: string, payload?: Record<string, unknown>) {
   vscode.postMessage({ type: 'action', action, payload });
+}
+
+function adjustTextareaHeight(input: HTMLTextAreaElement) {
+  input.style.height = 'auto';
+  const newHeight = Math.min(Math.max(input.scrollHeight, 60), 200);
+  input.style.height = `${newHeight}px`;
+}
+
+function hydrateUI() {
+  const history = document.getElementById('chat-history');
+  if (!history) return;
+  
+  history.innerHTML = '';
+  state.messages.forEach(m => {
+    const div = document.createElement('div');
+    div.id = m.id;
+    div.className = `message message-${m.role}`;
+    if (m.raw) {
+      div.dataset.raw = m.raw;
+    }
+    const parsed = processMessageContent(m.content);
+    div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsed}</div>`;
+    history.appendChild(div);
+  });
+  
+  scrollToBottom(history);
+  switchPanel(state.activePanel);
+  
+  const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+  if (input) {
+    input.value = state.inputDraft;
+    adjustTextareaHeight(input);
+  }
+  
+  const statusContent = document.getElementById('status-content');
+  if (statusContent && state.statusText) {
+    statusContent.innerHTML = cleanAndColorAnsi(state.statusText);
+  }
+
+  if (state.agents && state.agents.length > 0) {
+    renderAgentList(state.agents);
+  }
 }
 
 function attachEventListeners() {
@@ -392,22 +847,160 @@ function attachEventListeners() {
 
   const sendMessage = () => {
     if (input && input.value.trim() && !isExecuting) {
+      const rawPrompt = input.value.trim();
+      input.value = '';
+      state.inputDraft = '';
+      saveState();
+      adjustTextareaHeight(input);
+      hideAutocomplete();
+
+      // Local slash commands routing
+      if (rawPrompt.startsWith('/')) {
+        const parts = rawPrompt.split(/\s+/);
+        const cmd = parts[0].toLowerCase();
+        const arg = rawPrompt.slice(parts[0].length).trim();
+
+        if (cmd === '/clear') {
+          const history = document.getElementById('chat-history');
+          if (history) history.innerHTML = '';
+          state.messages = [];
+          saveState();
+          return;
+        }
+
+        if (cmd === '/help') {
+          const helpMsg = {
+            id: 'help-' + Date.now(),
+            role: 'system',
+            content: `### Command Code CLI Webview Guide\n\n` +
+                     `- \`/help\` - Show this help guide\n` +
+                     `- \`/clear\` - Clear chat history\n` +
+                     `- \`/plan <task>\` - Execute task in plan mode (dry-run)\n` +
+                     `- \`/sessions\` - Switch to recent sessions panel\n` +
+                     `- \`/agents\` - Switch to active agents board\n` +
+                     `- \`!<command>\` - Run direct bash commands (e.g. \`!npm test\`)\n` +
+                     `- \`@<filename>\` - Autocomplete file context paths\n`
+          };
+          appendMessage(helpMsg);
+          addOrUpdateMessage(helpMsg);
+          return;
+        }
+
+        if (cmd === '/plan') {
+          if (!arg) {
+            const planErr = { id: 'plan-err-' + Date.now(), role: 'system', content: `Usage: /plan <task>` };
+            appendMessage(planErr);
+            addOrUpdateMessage(planErr);
+            return;
+          }
+          setExecutingState(true);
+          vscode.postMessage({
+            type: 'chatInput',
+            payload: { prompt: arg, plan: true },
+          });
+          const planMsg = { id: 'local-' + Date.now(), role: 'user', content: `/plan ${arg}` };
+          appendMessage(planMsg);
+          addOrUpdateMessage(planMsg);
+          return;
+        }
+
+        if (cmd === '/sessions') {
+          sendAction('list-sessions');
+          return;
+        }
+
+        if (cmd === '/agents') {
+          switchPanel('agents');
+          return;
+        }
+
+        const cmdErr = { id: 'cmd-err-' + Date.now(), role: 'system', content: `Unknown command: ${cmd}. Type /help for options.` };
+        appendMessage(cmdErr);
+        addOrUpdateMessage(cmdErr);
+        return;
+      }
+
+      // Direct Bash execution routing
+      if (rawPrompt.startsWith('!')) {
+        const cmdStr = rawPrompt.slice(1).trim();
+        if (!cmdStr) {
+          const bashErr = { id: 'bash-err-' + Date.now(), role: 'system', content: `Usage: !<command>` };
+          appendMessage(bashErr);
+          addOrUpdateMessage(bashErr);
+          return;
+        }
+        setExecutingState(true);
+        vscode.postMessage({
+          type: 'chatInput',
+          payload: { prompt: cmdStr, isBash: true },
+        });
+        const bashMsg = { id: 'local-' + Date.now(), role: 'user', content: `!${cmdStr}` };
+        appendMessage(bashMsg);
+        addOrUpdateMessage(bashMsg);
+        return;
+      }
+
+      // Default prompt routing
       setExecutingState(true);
-      const prompt = input.value;
       vscode.postMessage({
         type: 'chatInput',
-        payload: { prompt },
+        payload: { prompt: rawPrompt },
       });
-      appendMessage({ id: 'local-' + Date.now(), role: 'user', content: prompt });
-      input.value = '';
+      const userMsg = { id: 'local-' + Date.now(), role: 'user', content: rawPrompt };
+      appendMessage(userMsg);
+      addOrUpdateMessage(userMsg);
     }
   };
 
   sendBtn?.addEventListener('click', sendMessage);
   input?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (autocompleteActive) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        autocompleteSelectedIndex = (autocompleteSelectedIndex + 1) % autocompleteItems.length;
+        updateAutocompleteList();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        autocompleteSelectedIndex = (autocompleteSelectedIndex - 1 + autocompleteItems.length) % autocompleteItems.length;
+        updateAutocompleteList();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        insertAutocompleteSelection();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideAutocomplete();
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  });
+
+  input?.addEventListener('input', () => {
+    state.inputDraft = input.value;
+    saveState();
+    adjustTextareaHeight(input);
+    handleInputOrCursorChange(input);
+  });
+
+  input?.addEventListener('click', () => {
+    handleInputOrCursorChange(input);
+  });
+
+  document.getElementById('autocomplete-list')?.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.autocomplete-item') as HTMLElement;
+    if (item && item.dataset.index !== undefined) {
+      autocompleteSelectedIndex = parseInt(item.dataset.index, 10);
+      insertAutocompleteSelection();
     }
   });
 
@@ -452,7 +1045,31 @@ function attachEventListeners() {
       if (id) {
         sendAction('respond-diff', { id, response: action });
         target.parentElement!.innerHTML = `<span style="color:var(--accent)">[${action.toUpperCase()}]</span>`;
+        const msg = state.messages.find(item => item.id === id);
+        if (msg) {
+          msg.diffResponse = action;
+          msg.content = renderDiffProposalHtml(id, msg.diffText || '', action);
+          saveState();
+        }
       }
+    }
+  });
+
+  // Copy code button delegation
+  const appElement = document.getElementById('app');
+  appElement?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('copy-code-btn')) {
+      const code = decodeURIComponent(target.dataset.code || '');
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = target.innerText;
+        target.innerText = 'COPIED!';
+        target.style.color = 'var(--accent)';
+        setTimeout(() => {
+          target.innerText = originalText;
+          target.style.color = '';
+        }, 1500);
+      });
     }
   });
 
@@ -484,9 +1101,9 @@ function initUI() {
     <div class="header">
       <h2>Command Code</h2>
       <div class="metrics">
-        <span class="metric" id="token-count">TOKENS // P ${state.tokens.prompt.toLocaleString()} / C ${state.tokens.completion.toLocaleString()} / ${state.tokens.total.toLocaleString()}</span>
-        <span class="metric" id="model-name">MODEL // ${state.modelId || 'NONE'}</span>
-        <span class="metric" id="perm-mode">PERM // ${state.permissionMode || 'STANDARD'}</span>
+        <span class="metric" id="token-count">TOKENS // P \${state.tokens.prompt.toLocaleString()} / C \${state.tokens.completion.toLocaleString()} / \${state.tokens.total.toLocaleString()}</span>
+        <span class="metric" id="model-name">MODEL // \${state.modelId || 'NONE'}</span>
+        <span class="metric" id="perm-mode">PERM // \${state.permissionMode || 'STANDARD'}</span>
       </div>
     </div>
 
@@ -506,6 +1123,7 @@ function initUI() {
         <div id="chat-panel" class="panel panel-active">
           <div class="chat-history" id="chat-history"></div>
           <div class="chat-input-container">
+            <div id="autocomplete-list" class="autocomplete-list hidden"></div>
             <textarea id="chat-input" placeholder="Type a message..."></textarea>
             <div class="chat-input-row">
               <div class="qr-code"></div>
@@ -566,8 +1184,8 @@ function initUI() {
     </div>
 
     <div class="footer-bar">
-      <span class="footer-item" id="footer-model">MODEL // ${state.modelId || 'NONE'}</span>
-      <span class="footer-item" id="footer-mode">MODE // ${state.permissionMode || 'STANDARD'}</span>
+      <span class="footer-item" id="footer-model">MODEL // \${state.modelId || 'NONE'}</span>
+      <span class="footer-item" id="footer-mode">MODE // \${state.permissionMode || 'STANDARD'}</span>
       <span class="footer-item" id="footer-tokens">T // P 0 / C 0 / 0</span>
       <span class="footer-item" id="footer-session">SESSION // --</span>
       <span class="footer-item" id="footer-turn">TURN // 0</span>
@@ -577,6 +1195,27 @@ function initUI() {
 
   attachEventListeners();
   updateFooter();
+
+  const chatHistory = document.getElementById('chat-history');
+  if (chatHistory) setupScrollButton(chatHistory);
+
+  // Restore state if it exists
+  const previousState = vscode.getState();
+  if (previousState) {
+    state.tokens = previousState.tokens || state.tokens;
+    state.modelId = previousState.modelId || state.modelId;
+    state.permissionMode = previousState.permissionMode || state.permissionMode;
+    state.statusText = previousState.statusText || state.statusText;
+    state.sessions = previousState.sessions;
+    state.currentSessionId = previousState.currentSessionId || null;
+    state.turnCount = previousState.turnCount || 0;
+    state.context = previousState.context || state.context;
+    state.messages = previousState.messages || [];
+    state.activePanel = previousState.activePanel || 'chat';
+    state.inputDraft = previousState.inputDraft || '';
+    state.agents = previousState.agents || [];
+    hydrateUI();
+  }
 }
 
 // ─── Message Event Handler ────────────────────────────
@@ -594,6 +1233,7 @@ window.addEventListener('message', (event: MessageEvent) => {
           content: string;
         };
         appendMessage({ id, role, content });
+        addOrUpdateMessage({ id, role, content });
         break;
       }
 
@@ -603,41 +1243,34 @@ window.addEventListener('message', (event: MessageEvent) => {
           role: string;
           dataUri: string;
         };
+        const content = `<img src="${dataUri}" class="chat-image" />`;
         appendMessage({
           id,
           role,
-          content: `<img src="${dataUri}" class="chat-image" />`,
+          content,
         });
+        addOrUpdateMessage({ id, role, content, isImage: true, dataUri });
         break;
       }
 
       case 'RenderDiffProposal': {
         const { id, diffText } = payload as { id: string; diffText: string };
-        const html = `
-          <div class="diff-widget">
-            <div class="diff-header">
-              <span>PROPOSAL</span>
-              <div class="diff-actions">
-                <button class="diff-btn accept" data-id="${id}">ACCEPT</button>
-                <button class="diff-btn reject" data-id="${id}">REJECT</button>
-              </div>
-            </div>
-            <div class="diff-content">${escapeHtml(diffText)
-              .replace(/^(\+.*)$/gm, '<span class="diff-line add">$1</span>')
-              .replace(/^(-.*)$/gm, '<span class="diff-line sub">$1</span>')}</div>
-          </div>
-        `;
+        const html = renderDiffProposalHtml(id, diffText);
         appendMessage({ id, role: 'system', content: html });
+        addOrUpdateMessage({ id, role: 'system', content: html, isDiffProposal: true, diffText });
         break;
       }
 
       case 'UpdateAgents': {
-        renderAgentList(payload.agents ?? []);
+        state.agents = payload.agents ?? [];
+        saveState();
+        renderAgentList(state.agents);
         break;
       }
 
       case 'UpdateTokens': {
         state.tokens = payload;
+        saveState();
         const tc = document.getElementById('token-count');
         if (tc)
           tc.innerText = `TOKENS // P ${state.tokens.prompt.toLocaleString()} / C ${state.tokens.completion.toLocaleString()} / ${state.tokens.total.toLocaleString()}`;
@@ -678,7 +1311,10 @@ window.addEventListener('message', (event: MessageEvent) => {
         }
 
         div.innerHTML = `<span class="message-role">${role}</span><div class="message-content">${parsedContent}</div>`;
-        history.scrollTop = history.scrollHeight;
+        if (isNearBottom(history)) scrollToBottom(history);
+
+        // Update state
+        addOrUpdateMessage({ id, role, content: raw, raw });
         break;
       }
 
@@ -691,8 +1327,10 @@ window.addEventListener('message', (event: MessageEvent) => {
         const content = document.getElementById('status-content');
         if (content) {
           switchPanel('status');
-          content.textContent += payload.chunk;
-          content.scrollTop = content.scrollHeight;
+          state.statusText += payload.chunk;
+          saveState();
+          content.innerHTML = cleanAndColorAnsi(state.statusText);
+          if (isNearBottom(content)) scrollToBottom(content);
         }
         break;
       }
@@ -715,6 +1353,7 @@ window.addEventListener('message', (event: MessageEvent) => {
         state.tokens = tokens;
         state.currentSessionId = sessionId ?? null;
         state.turnCount = turnCount ?? 0;
+        saveState();
 
         const mn = document.getElementById('model-name');
         if (mn) mn.innerText = `MODEL // ${state.modelId || 'NONE'}`;
@@ -730,6 +1369,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
       case 'permChanged': {
         state.permissionMode = payload.permissionMode;
+        saveState();
         const pm = document.getElementById('perm-mode');
         if (pm)
           pm.innerText = `PERM // ${state.permissionMode || 'STANDARD'}`;
@@ -740,6 +1380,7 @@ window.addEventListener('message', (event: MessageEvent) => {
       case 'modelChanged':
       case 'ModelChanged': {
         state.modelId = payload.modelId;
+        saveState();
         const mn = document.getElementById('model-name');
         if (mn) mn.innerText = `MODEL // ${state.modelId || 'NONE'}`;
         updateFooter();
@@ -748,6 +1389,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
       case 'SessionList': {
         state.sessions = payload.sessions ?? [];
+        saveState();
         renderSessionList(state.sessions ?? []);
         break;
       }
@@ -755,16 +1397,19 @@ window.addEventListener('message', (event: MessageEvent) => {
       case 'StatusResult': {
         setExecutingState(false);
         state.statusText = payload.text ?? '';
+        saveState();
         renderStatus(state.statusText);
         break;
       }
 
       case 'Notification': {
-        appendMessage({
+        const helpMsg = {
           id: 'sys-' + Date.now(),
           role: 'system',
           content: payload.text,
-        });
+        };
+        appendMessage(helpMsg);
+        addOrUpdateMessage(helpMsg);
         break;
       }
 
@@ -789,7 +1434,9 @@ window.addEventListener('message', (event: MessageEvent) => {
             </div>
           </div>
         `;
-        appendMessage({ id: 'bg-' + Date.now(), role: 'system', content: html });
+        const notificationMsg = { id: 'bg-' + Date.now(), role: 'system', content: html };
+        appendMessage(notificationMsg);
+        addOrUpdateMessage(notificationMsg);
         break;
       }
 
@@ -815,6 +1462,7 @@ window.addEventListener('message', (event: MessageEvent) => {
         }));
         state.context.gitBranch = git?.branch ?? null;
         state.context.dirtyFilesCount = git?.dirtyFiles?.length ?? 0;
+        saveState();
         updateContextPanel();
         break;
       }
@@ -826,12 +1474,14 @@ window.addEventListener('message', (event: MessageEvent) => {
         };
         state.currentSessionId = sessionId;
         state.turnCount = tCount ?? 0;
+        saveState();
         updateFooter();
         break;
       }
 
       case 'UpdateTurnCount': {
         state.turnCount = payload.turnCount;
+        saveState();
         updateFooter();
         break;
       }
@@ -846,6 +1496,7 @@ window.addEventListener('message', (event: MessageEvent) => {
               sum + (f.diagnostics?.length ?? 0),
             0,
           ) ?? 0;
+        saveState();
         updateContextPanel();
         break;
       }

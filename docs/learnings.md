@@ -36,3 +36,20 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 ### 6. Stateless Multi-Panel UIs and Optimistic Updates
 - **The Complected Way:** Managing tab state in a Javascript variable and re-rendering the entire DOM when switching tabs (e.g. Chat vs Sessions vs Status).
 - **The Simple Way:** CSS-driven Panel visibility. A simple Javascript function toggles a `panel-active` CSS class. The Webview remains entirely stateless, relying purely on the DOM's built-in structural state. Furthermore, for inputs (like the Chat Execute button), updating the DOM optimistically *before* the backend responds creates immediate tactile feedback without requiring complex state management.
+
+### 7. Decoupled Autocomplete Tokenization
+- **The Complected Way:** Sending the input to the backend to parse slash commands, bash commands, or context files.
+- **The Simple Way:** In CMD Lite, we intercept `/`, `@`, and `!` tokens locally in the webview. We filter and render suggestions (open files, common commands) without hitting the backend, maintaining absolute client side decoupling.
+
+### 8. Direct terminal Routing
+- **The Simple Way:** Routing `!` commands straight to process spawning on the extension host, bypassing the LLM agent flow completely. This allows developers to run tests and builds instantly, preserving terminal execution parity.
+
+### 9. Webview State Persistence (DOM Lifecycle Recovery)
+- **The Complected Way:** Retaining webview iframe in memory using `retainContextWhenHidden` or managing complex synchronization states inside the host extension, which leaks resources.
+- **The Simple Way:** Serializing raw session data, log traces, active tabs, and input drafts to the local storage interface (`vscode.setState`/`getState`) and re-drawing the DOM elements statically upon extension re-init.
+
+### 10. Stateful ANSI Escape sequence colorization
+- **The Simple Way:** Maintaining a stateful regex ANSI color parser that parses raw terminal outputs and translates them to HTML colored span tags dynamically, styled using standard VS Code terminal color tokens.
+
+### 11. Custom Regex Code Tokenization (Zero-Dependency Syntax Highlighting)
+- **The Simple Way:** Building a lightweight O(N) regex tokenizer inside `main.ts` that highlights code snippets without loading heavy third-party syntax highlight scripts.

@@ -1,4 +1,5 @@
 import * as crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 import { registerChatParticipant } from "./chat/participant";
 import {
@@ -186,9 +187,60 @@ export function activate(context: vscode.ExtensionContext): void {
         "type" in data &&
         (data as { type: string }).type === "chatInput"
       ) {
-        const input = data as { type: "chatInput"; payload: { prompt: string } };
+        const input = data as { type: "chatInput"; payload: { prompt: string; isBash?: boolean; plan?: boolean } };
         const prompt = input.payload?.prompt;
         if (!prompt) return;
+
+        // Handle direct Bash execution mode
+        if (input.payload?.isBash) {
+          outputChannel.appendLine(`[webview] bash command received: ${prompt}`);
+          const msgId = `bash-${Date.now()}`;
+          chatProvider.dispatchEvent({
+            jsonrpc: "2.0",
+            method: "webview/dispatchEvent",
+            params: {
+              type: "StreamMessageChunk",
+              payload: { id: msgId, role: "system", chunk: `> ${prompt}\n` },
+            },
+          });
+          const child = spawn(prompt, [], { cwd: getActiveCwd(), shell: true });
+          child.stdout.on("data", (chunk) => {
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: {
+                type: "StreamMessageChunk",
+                payload: { id: msgId, role: "system", chunk: chunk.toString() },
+              },
+            });
+          });
+          child.stderr.on("data", (chunk) => {
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: {
+                type: "StreamMessageChunk",
+                payload: { id: msgId, role: "system", chunk: chunk.toString() },
+              },
+            });
+          });
+          child.on("close", (code) => {
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: {
+                type: "StreamMessageChunk",
+                payload: { id: msgId, role: "system", chunk: `\n[Process completed with exit code ${code}]` },
+              },
+            });
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: { type: "StreamFinished", payload: { id: msgId } }
+            });
+          });
+          return;
+        }
 
         outputChannel.appendLine(`[webview] chatInput received: ${prompt.slice(0, 80)}`);
         let streamedAny = false;
@@ -206,6 +258,7 @@ export function activate(context: vscode.ExtensionContext): void {
             model: getEffectiveModel(),
             maxTurns: getEffectiveMaxTurns(),
             permissionMode: getEffectivePermissionMode(),
+            plan: input.payload?.plan,
             onStdoutChunk: (chunk: string) => {
               streamedAny = true;
               chatProvider.dispatchEvent({
