@@ -194,16 +194,18 @@ window.addEventListener('message', (event: MessageEvent) => {
         state.messages.push(payload);
         appendMessage(payload);
         break;
-      case 'UpdateTokens':
+      case 'UpdateTokens': {
         state.tokens = payload;
         const tc = document.getElementById('token-count');
         if (tc) tc.innerText = `TOKENS // ${state.tokens.total.toLocaleString()}`;
         break;
-      case 'ModelChanged':
+      }
+      case 'ModelChanged': {
         state.modelId = payload.modelId;
         const mn = document.getElementById('model-name');
         if (mn) mn.innerText = `MODEL // ${state.modelId || 'None'}`;
         break;
+      }
       case 'SessionList':
         state.sessions = payload.sessions ?? [];
         renderSessionList(state.sessions);
