@@ -68,3 +68,7 @@
 ### Composable Registries Pattern (Agent Autonomy)
 - **Context**: Writing custom wrapper scripts (even in Babashka) inside an IDE extension to grant the CLI OS-level capabilities tightly couples the execution environment to the IDE repository.
 - **Solution**: Pivot entirely to composing external registries. Generate dynamic configuration files (`mcp.json`) that command the headless CLI to provision **Official Reference MCP Servers** via `npx -y` at runtime. This removes maintenance burden from the extension layer and ensures the agent always operates on standard, open-source capability sets.
+
+### Base64 DataURI Context Bridge Pattern
+- **Context**: Sandboxed IDE Webviews cannot reliably access OS absolute file paths, preventing users from dragging-and-dropping context (like images or logs) directly to an external CLI process.
+- **Solution**: Intercept the HTML5 `drop` event within the Webview, convert the file to a Base64 DataURI using `FileReader`, and pass the serialized payload over JSON-RPC to the extension host. The extension can then securely cache the file in the workspace or forward the URI to the CLI's MCP File System tool.

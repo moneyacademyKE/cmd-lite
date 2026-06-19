@@ -21,6 +21,10 @@ The unofficial extension is built as a **decoupled, feature-rich wrapper** that 
 | **Language Model Tools (6 Tools)** | ❌ | ✅ | **Feature**: Exposes IDE capabilities (`runPrint`, `getTaste`, etc.) to Copilot/Agents. |
 | **Parallel Agent Orchestration** | ❌ | ✅ | **Feature**: Coordinates concurrent `cmd --headless` tasks (impl, tests, docs). |
 | **Inline Diff Previews** | ❌ | ✅ | **Feature**: Intercepts code modifications and presents them via `vscode.diff()` using a custom virtual provider to preserve syntax highlighting and file editability. |
+| **Interactive Webview Diffs** | ❌ | ✅ | **Feature**: In-chat diff blocks with native Accept/Reject resolution buttons. |
+| **Rich Tool Visualization** | ❌ | ✅ | **Feature**: Streams tool outputs (e.g., base64 screenshots) as inline images. |
+| **Context Drag-and-Drop** | ❌ | ✅ | **Feature**: Drop context files onto the chat to automatically bridge to the CLI File System. |
+| **Multi-Agent Dashboard** | ❌ | ✅ | **Feature**: Sidebar panel visualizing concurrent background agents in real-time. |
 | **Taste Sidebar TreeView** | ❌ | ✅ | **Feature**: Employs `FileSystemWatcher` for reactive reload of `.commandcode/taste/`. |
 | **Status Bar Controller** | ❌ | ✅ | **Feature**: Quick settings selector for active model, permission modes, and status. |
 | **MCP Config Generator** | ❌ | ✅ | **Feature**: Generates `mcp.json` to provision external OS capabilities dynamically. |
