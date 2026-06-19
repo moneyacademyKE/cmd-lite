@@ -107,8 +107,7 @@ Safety: 8MB buffer cap, 4MB message cap, 16 connection cap, 60s idle timeout, `0
 | Dynamic `require("node:path")` in taste/commands.ts | Static `import * as path` |
 | Dynamic `import("../cli/commands")` for getInfo | Static import of `getInfo` |
 | `HeadlessRequest` interface unused | Removed |
-
-**Remaining:** `eslint` referenced in scripts but not in devDependencies (lint is broken). No `.eslintrc`, no `launch.json`, no pre-commit hooks. No `"test"` script. `pnpm` referenced in docs but `npm lockfile` used.
+**Remaining:** No pre-commit hooks. `pnpm` referenced in docs but `npm lockfile` used.
 
 ---
 
