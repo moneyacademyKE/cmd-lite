@@ -1,7 +1,9 @@
 import { exec } from "node:child_process";
+import { Logger } from "../logger";
+import { SessionManager } from "../sessionManager";
 
 const CHECKPOINT_PREFIX = "cmd-lite/pre-";
-let lastCheckpointRef: string | null = null;
+const session = SessionManager.getInstance();
 
 /**
  * Check if the given directory is inside a git repo with changes to stash.
@@ -40,11 +42,11 @@ export async function createPreCheckpoint(cwd?: string): Promise<boolean> {
   return new Promise((resolve) => {
     exec(`git stash push -m "${message}" --include-untracked`, { cwd: dir }, (err, _stdout, stderr) => {
       if (err) {
-        console.error("CommandCode: checkpoint failed:", stderr);
+        Logger.error("CommandCode: checkpoint failed:", stderr);
         resolve(false);
         return;
       }
-      lastCheckpointRef = message;
+      session.lastCheckpointRef = message;
       resolve(true);
     });
   });
@@ -72,11 +74,11 @@ export async function restoreLastCheckpoint(cwd?: string): Promise<boolean> {
         const mostRecent = refs[0];
         exec(`git stash pop ${mostRecent}`, { cwd: dir }, (popErr, _so, se) => {
           if (popErr) {
-            console.error("CommandCode: restore checkpoint failed:", se);
+            Logger.error("CommandCode: restore checkpoint failed:", se);
             resolve(false);
             return;
           }
-          lastCheckpointRef = null;
+          session.lastCheckpointRef = null;
           resolve(true);
         });
       },
@@ -85,5 +87,5 @@ export async function restoreLastCheckpoint(cwd?: string): Promise<boolean> {
 }
 
 export function getLastCheckpointRef(): string | null {
-  return lastCheckpointRef;
+  return session.lastCheckpointRef;
 }

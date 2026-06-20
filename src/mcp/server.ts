@@ -10,6 +10,7 @@ import {
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SocketTransport } from "./transport.js";
 import { cleanupSocket } from "../context/session.js";
+import { Logger } from "../logger";
 
 export interface McpTool extends Tool {
   execute(args: Record<string, unknown>): Promise<CallToolResult>;
@@ -41,11 +42,11 @@ export class CmdMcpServer {
     if (this.socketPath) {
       this.server = net.createServer((socket) => {
         const transport = new SocketTransport(socket);
-        this.mcpServer.connect(transport).catch(console.error);
+        this.mcpServer.connect(transport).catch(err => Logger.error("[MCP] Connection error:", err));
       });
 
       this.server.on("error", (err) => {
-        console.error("[MCP] Server error:", err);
+        Logger.error("[MCP] Server error:", err);
       });
     } else {
       this.usingStdio = true;
@@ -81,8 +82,8 @@ export class CmdMcpServer {
       this.server.listen(this.socketPath, () => {
         try {
           fs.chmodSync(this.socketPath!, 0o600);
-        } catch {
-          // best-effort
+        } catch (err) {
+          Logger.warn("Failed to chmod MCP socket:", err);
         }
       });
     }

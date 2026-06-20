@@ -128,6 +128,55 @@ describe("IPC protocol", () => {
       };
       expect(isIpcRequest(invalid)).toBe(false);
     });
+
+    it("returns false if openFile action has missing filePath", () => {
+      const invalid = {
+        type: "request",
+        id: "req-1",
+        payload: { action: "openFile" }
+      };
+      expect(isIpcRequest(invalid)).toBe(false);
+    });
+
+    it("returns true for openFile action with valid filePath", () => {
+      const valid = {
+        type: "request",
+        id: "req-1",
+        payload: { action: "openFile", filePath: "src/main.ts" }
+      };
+      expect(isIpcRequest(valid)).toBe(true);
+    });
+
+    it("returns false for applyEdit action with invalid editPayload", () => {
+      const invalid = {
+        type: "request",
+        id: "req-1",
+        payload: { action: "applyEdit", editPayload: "invalid" }
+      };
+      expect(isIpcRequest(invalid)).toBe(false);
+    });
+
+    it("returns true for applyEdit action with valid editPayload", () => {
+      const valid = {
+        type: "request",
+        id: "req-1",
+        payload: {
+          action: "applyEdit",
+          editPayload: {
+            "file:///src/main.ts": [
+              {
+                range: [
+                  { line: 0, character: 0 },
+                  { line: 1, character: 0 }
+                ],
+                newText: "hello"
+              }
+            ]
+          }
+        }
+      };
+      expect(isIpcRequest(valid)).toBe(true);
+    });
   });
 });
 

@@ -2,6 +2,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as vscode from "vscode";
+import { Logger } from "../logger";
 
 export const SESSION_DIR = path.join(
   os.homedir(),
@@ -23,8 +24,8 @@ function ensureSessionDir(): void {
   });
   try {
     fs.chmodSync(SESSION_DIR, 0o700);
-  } catch {
-    // best-effort
+  } catch (err) {
+    Logger.warn("Failed to chmod SESSION_DIR (best-effort):", err);
   }
 }
 
@@ -90,8 +91,8 @@ export function writeSessionFile(
 
   try {
     fs.chmodSync(filePath, 0o600);
-  } catch {
-    // best-effort
+  } catch (err) {
+    Logger.warn("Failed to chmod session file (best-effort):", err);
   }
 }
 
@@ -118,8 +119,8 @@ export function cleanupSocket(socketPath: string): void {
   if (!fs.existsSync(socketPath)) return;
   try {
     fs.unlinkSync(socketPath);
-  } catch {
-    // best-effort
+  } catch (err) {
+    Logger.warn("Failed to unlink socket (best-effort):", err);
   }
 }
 
@@ -133,8 +134,8 @@ export function cleanupStaleSockets(ideName: string): void {
       if (entry.endsWith(".sock") && entry.startsWith(`${ideName}-`)) {
         try {
           fs.unlinkSync(path.join(SESSION_DIR, entry));
-        } catch {
-          // best-effort
+        } catch (err) {
+          Logger.warn("Failed to clean up stale socket:", err);
         }
       }
     }

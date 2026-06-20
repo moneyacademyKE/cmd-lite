@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { escapeHtml } from "../util/util";
 
 export interface PermissionRequest {
   action: string;
@@ -183,10 +184,4 @@ export class PermissionGate implements vscode.Disposable {
   }
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+

@@ -31,14 +31,40 @@ export function isIpcRequest(msg: unknown): msg is IpcRequest {
   
   const payload = record.payload as Record<string, unknown> | undefined;
   if (payload === null || typeof payload !== "object") return false;
-  if (typeof payload.action !== "string") return false;
+  const action = payload.action;
+  if (typeof action !== "string") return false;
   
+  // General validation for fields if present
   if (payload.filePaths !== undefined) {
     if (!Array.isArray(payload.filePaths)) return false;
     if (!payload.filePaths.every((f) => typeof f === "string")) return false;
   }
   if (payload.filePath !== undefined && typeof payload.filePath !== "string") {
     return false;
+  }
+  
+  if (action === IPC_ACTIONS.OPEN_FILE) {
+    if (typeof payload.filePath !== "string") return false;
+  } else if (action === IPC_ACTIONS.APPLY_EDIT) {
+    const editPayload = payload.editPayload;
+    if (editPayload === null || typeof editPayload !== "object") return false;
+    for (const [uri, edits] of Object.entries(editPayload)) {
+      if (typeof uri !== "string") return false;
+      if (!Array.isArray(edits)) return false;
+      for (const edit of edits) {
+        if (edit === null || typeof edit !== "object") return false;
+        const e = edit as Record<string, unknown>;
+        if (typeof e.newText !== "string") return false;
+        if (!Array.isArray(e.range) || e.range.length !== 2) return false;
+        for (const pos of e.range) {
+          if (pos === null || typeof pos !== "object") return false;
+          const p = pos as Record<string, unknown>;
+          if (typeof p.line !== "number" || typeof p.character !== "number") return false;
+        }
+      }
+    }
+  } else if (action === IPC_ACTIONS.DISPATCH_WEBVIEW_EVENT) {
+    if (payload.eventPayload === undefined) return false;
   }
   
   return true;

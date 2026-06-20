@@ -16,8 +16,14 @@ vi.mock("vscode", () => ({
   env: { appName: "mock" },
   window: {
     createOutputChannel: vi.fn(() => ({
-      appendLine: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      clear: vi.fn(),
       show: vi.fn(),
+      dispose: vi.fn(),
     })),
   },
   workspace: {

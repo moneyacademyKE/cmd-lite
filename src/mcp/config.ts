@@ -29,6 +29,14 @@ export async function generateMcpConfig(): Promise<void> {
         command: "npx",
         args: ["-y", "@modelcontextprotocol/server-puppeteer"],
       },
+      "playwright": {
+        command: "npx",
+        args: ["-y", "@playwright/mcp"],
+      },
+      "computer-use": {
+        command: "npx",
+        args: ["-y", "computer-use-mcp"],
+      },
       "memory": {
         command: "npx",
         args: ["-y", "@modelcontextprotocol/server-memory"],

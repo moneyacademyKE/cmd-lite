@@ -7,8 +7,14 @@
  * calls, diff blocks), and session-aware state tracking for long-horizon goals.
  */
 import { marked } from 'marked';
+import { escapeHtml } from '../util/util';
 
-// @ts-expect-error acquireVsCodeApi is provided by VS Code webview
+declare function acquireVsCodeApi(): {
+  postMessage(message: unknown): void;
+  getState(): any;
+  setState(state: any): void;
+};
+
 const vscode = acquireVsCodeApi();
 
 interface SessionItem {
@@ -218,13 +224,7 @@ function handleInputOrCursorChange(input: HTMLTextAreaElement) {
   }
 }
 
-// ─── Utilities ───────────────────────────────────────
 
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 // ─── Toast Notification System ────────────────────────
 
@@ -1895,4 +1895,18 @@ window.addEventListener('message', (event: MessageEvent) => {
   }
 });
 
-initUI();
+try {
+  initUI();
+} catch (err) {
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = `
+      <div style="padding: 20px; color: var(--vscode-errorForeground); font-family: sans-serif;">
+        <h3>⚠️ Something went wrong</h3>
+        <p>Failed to initialize the CMD Lite UI.</p>
+        <pre style="background: rgba(0,0,0,0.1); padding: 10px; border-radius: 4px; overflow-x: auto;">${err instanceof Error ? err.stack || err.message : String(err)}</pre>
+        <button onclick="window.location.reload()" style="background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; border-radius: 2px; cursor: pointer;">Reload Window</button>
+      </div>
+    `;
+  }
+}

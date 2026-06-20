@@ -1,29 +1,30 @@
 import * as vscode from 'vscode';
 import { getEffectiveModel, getEffectivePermissionMode } from '../config';
 import type { EditorContext } from '../context/protocol';
+import { Logger } from '../logger';
 
-// Module-level state shared between extension and webview
-let currentSessionId: string | null = null;
-let turnCount = 0;
+import { SessionManager } from '../sessionManager';
+
+const session = SessionManager.getInstance();
 
 export function setCurrentSessionId(id: string | null) {
-  currentSessionId = id;
+  session.currentSessionId = id;
 }
 
 export function getCurrentSessionId(): string | null {
-  return currentSessionId;
+  return session.currentSessionId;
 }
 
 export function incrementTurnCount(): number {
-  return ++turnCount;
+  return session.incrementTurnCount();
 }
 
 export function getTurnCount(): number {
-  return turnCount;
+  return session.turnCount;
 }
 
 export function resetTurnCount() {
-  turnCount = 0;
+  session.resetTurnCount();
 }
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
@@ -54,7 +55,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (this._onEvent) {
         this._onEvent('webview_interaction', message);
       } else {
-        console.log('Received message from webview (unhandled):', message);
+        if (message.type === "ping") {
+          return;
+        }
+        Logger.debug('Received message from webview (unhandled):', message);
       }
     });
 
@@ -68,8 +72,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           modelId: getEffectiveModel() ?? '',
           permissionMode: getEffectivePermissionMode(),
           tokens: { prompt: 0, completion: 0, total: 0 },
-          sessionId: currentSessionId ?? '',
-          turnCount,
+          sessionId: session.currentSessionId ?? '',
+          turnCount: session.turnCount,
         }
       }
     });

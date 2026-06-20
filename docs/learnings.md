@@ -70,5 +70,6 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 - **The Complected Way:** Storing project dependencies physically inside every local folder's `node_modules` (NPM/Bun) or requiring custom archive loader overlays at compile-time (Yarn PnP). This complects project layout with local disk storage structures or adds high incidental complexity to build systems.
 - **The Simple Way:** Standardizing on `pnpm`. By storing packages exactly once in a shared content-addressable storage pool (`~/.local/share/pnpm/store/`) and mapping them via hard links/symbolic links, pnpm isolates storage management from workspace composition while maintaining standard Node module resolution.
 
-
-
+### 16. VS Code Mock-Driven Activation Testing
+- **The Complected Way:** Testing extension activation by launching a full VS Code Extension Development Host instance for simple unit testing. This is slow, resource-heavy, and difficult to automate in headless environments.
+- **The Simple Way:** Mock-Driven Unit Testing. By providing a comprehensive mock of the `vscode` namespace in Vitest (including constructor classes like `RelativePattern`, `Position`, `Range`, `WorkspaceEdit` and events returning `{ dispose: vi.fn() }`), we can run extension activation synchronously in milliseconds and verify all register commands/providers without any IDE overhead.

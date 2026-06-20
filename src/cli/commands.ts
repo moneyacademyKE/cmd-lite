@@ -72,19 +72,17 @@ export async function runPrint(
   }
   if (options.plan) args.push("--plan");
   if (options.resume) args.push("-r", options.resume);
+  // Create a pre-flight git checkpoint before file-modifying operations
+  if (!options.plan) {
+    await createPreCheckpoint(options.cwd).catch(() => {});
+  }
+
   return runCli(args, {
     cwd: options.cwd,
     timeoutMs: options.timeoutMs,
     onStdoutChunk: options.onStdoutChunk,
     signal: options.signal,
   });
-
-  // Create a pre-flight git checkpoint before file-modifying operations
-  if (!options.plan) {
-    await createPreCheckpoint(options.cwd).catch(() => {});
-  }
-
-  return runCli(args, { cwd: options.cwd, timeoutMs: options.timeoutMs });
 }
 
 export async function listModels(cwd?: string): Promise<ModelInfo[]> {

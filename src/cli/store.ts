@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { Logger } from "../logger";
 
 export interface ParticipantState {
   permissionMode: "standard" | "plan" | "auto-accept";
@@ -36,7 +37,7 @@ export function readSessionState(): ParticipantState {
       ...parsed,
     };
   } catch (err) {
-    console.error("Failed to read session state:", err);
+    Logger.error("Failed to read session state:", err);
     return { ...DEFAULT_STATE };
   }
 }
@@ -46,6 +47,6 @@ export function writeSessionState(state: ParticipantState): void {
     const storePath = getStorePath();
     fs.writeFileSync(storePath, JSON.stringify(state, null, 2), "utf-8");
   } catch (err) {
-    console.error("Failed to write session state:", err);
+    Logger.error("Failed to write session state:", err);
   }
 }

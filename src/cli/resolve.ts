@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { execSync } from "node:child_process";
+import { exec } from "node:child_process";
 import * as vscode from "vscode";
 
 let cached: string | undefined;
@@ -32,30 +32,35 @@ export function validateCliPath(cliPath: string): { valid: boolean; message?: st
   return { valid: false, message: `CLI binary not found at "${cliPath}". Install with \`npm i -g command-code\` or set \`commandcode.cliPath\` to the correct location.` };
 }
 
-export function checkCliVersion(cliPath: string): { compatible: boolean; version?: string; message?: string } {
-  try {
-    const output = execSync(`"${cliPath}" --version`, {
-      encoding: "utf-8",
+export async function checkCliVersion(cliPath: string): Promise<{ compatible: boolean; version?: string; message?: string }> {
+  return new Promise((resolve) => {
+    exec(`"${cliPath}" --version`, {
       timeout: 5000,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    const match = /(\d+\.\d+\.\d+)/.exec(output);
-    if (match) {
-      const version = match[1];
-      const [major, minor] = version.split(".").map(Number);
-      if (major === 0) {
-        if (minor < 39) {
-          return {
-            compatible: false,
-            version,
-            message: `Command Code CLI v${version} is too old. Please update to v0.39.0 or later with \`cmd update\`.`,
-          };
-        }
+      windowsHide: true,
+    }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({ compatible: true }); // couldn't run --version, assume OK
+        return;
       }
-      return { compatible: true, version };
-    }
-    return { compatible: true }; // couldn't parse version, assume OK
-  } catch {
-    return { compatible: true }; // couldn't run --version, assume OK (path valid check handles this)
-  }
+      const output = (stdout || stderr || "").trim();
+      const match = /(\d+\.\d+\.\d+)/.exec(output);
+      if (match) {
+        const version = match[1];
+        const [major, minor] = version.split(".").map(Number);
+        if (major === 0) {
+          if (minor < 39) {
+            resolve({
+              compatible: false,
+              version,
+              message: `Command Code CLI v${version} is too old. Please update to v0.39.0 or later with \`cmd update\`.`,
+            });
+            return;
+          }
+        }
+        resolve({ compatible: true, version });
+        return;
+      }
+      resolve({ compatible: true });
+    });
+  });
 }

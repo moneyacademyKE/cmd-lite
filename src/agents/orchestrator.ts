@@ -20,11 +20,40 @@ export interface OrchestraOptions {
   cwd?: string;
   defaultModel?: string;
   maxTurns?: number;
+  /** Maximum number of agents to run concurrently (default: 3). Set to 0 for unlimited. */
+  maxConcurrency?: number;
   permissionMode?: "standard" | "plan" | "auto-accept";
   planMode?: boolean;
   onAgentProgress?: (label: string, chunk: string) => void;
   onAgentDone?: (label: string) => void;
   signal?: AbortSignal;
+}
+
+/**
+ * Run a list of async functions with a concurrency cap.
+ * When `maxConcurrency` is 0 or exceeds the task count, all tasks run in parallel.
+ */
+async function runWithConcurrency<T>(
+  factories: (() => Promise<T>)[],
+  maxConcurrency: number,
+): Promise<T[]> {
+  if (maxConcurrency <= 0 || maxConcurrency >= factories.length) {
+    return Promise.all(factories.map((fn) => fn()));
+  }
+
+  const results: T[] = new Array(factories.length);
+  let index = 0;
+
+  async function worker(): Promise<void> {
+    while (index < factories.length) {
+      const i = index++;
+      results[i] = await factories[i]();
+    }
+  }
+
+  const workers = Array.from({ length: maxConcurrency }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 export async function runParallel(
@@ -34,9 +63,10 @@ export async function runParallel(
   const cwd = options.cwd ?? getActiveCwd();
   const defaultModel = options.defaultModel ?? getEffectiveModel();
   const maxTurns = options.maxTurns ?? getEffectiveMaxTurns();
+  const concurrency = options.maxConcurrency ?? 3;
   const permissionMode = options.permissionMode ?? getEffectivePermissionMode();
 
-  const promises = tasks.map(async (task) => {
+  const factories = tasks.map((task) => async () => {
     const args: string[] = ["-p", task.prompt];
     args.push("--max-turns", String(maxTurns));
     const model = task.model ?? defaultModel;
@@ -62,10 +92,10 @@ export async function runParallel(
       label: task.label,
       prompt: task.prompt,
       result,
-    };
+    } satisfies AgentResult;
   });
 
-  return Promise.all(promises);
+  return runWithConcurrency(factories, concurrency);
 }
 
 export function formatParallelResults(

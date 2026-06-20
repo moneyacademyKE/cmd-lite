@@ -47,12 +47,9 @@ import { diffProposeTool } from "./mcp/tools/diff";
 import { terminalTool } from "./mcp/tools/terminal";
 import { generateMcpConfig } from "./mcp/config";
 import { Logger } from "./logger";
+import { SessionManager } from "./sessionManager";
 
-let currentSessionId: string | null = null;
-let currentIdeName: string | null = null;
-let ipcServer: IPCServer | null = null;
-let mcpServer: CmdMcpServer | null = null;
-let activeAbortController: AbortController | null = null;
+const session = SessionManager.getInstance();
 
 async function handleWebviewAction(
   msg: { type: "action"; action: string; payload?: Record<string, unknown> },
@@ -121,9 +118,9 @@ async function handleWebviewAction(
       break;
     }
     case "interrupt-execution": {
-      if (activeAbortController) {
-        activeAbortController.abort();
-        activeAbortController = null;
+      if (session.activeAbortController) {
+        session.activeAbortController.abort();
+        session.activeAbortController = null;
       }
       break;
     }
@@ -157,7 +154,7 @@ async function handleWebviewAction(
   }
 }
 
-function validateAndCheckCli(cliPath: string): void {
+async function validateAndCheckCli(cliPath: string): Promise<void> {
   const validation = validateCliPath(cliPath);
   if (!validation.valid) {
     vscode.window.showErrorMessage(
@@ -173,7 +170,7 @@ function validateAndCheckCli(cliPath: string): void {
       }
     });
   } else {
-    const version = checkCliVersion(cliPath);
+    const version = await checkCliVersion(cliPath);
     if (!version.compatible && version.message) {
       vscode.window.showWarningMessage(
         `Command Code: ${version.message}`,
@@ -277,11 +274,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Increment turn count and push session info to footer
         const turnCount = incrementTurnCount();
-        if (currentSessionId) {
-          chatProvider.dispatchSessionInfo(currentSessionId, turnCount);
+        if (session.currentSessionId) {
+          chatProvider.dispatchSessionInfo(session.currentSessionId, turnCount);
         }
 
-        activeAbortController = new AbortController();
+        session.activeAbortController = new AbortController();
         try {
           const result = await runPrint(prompt, {
             cwd: getActiveCwd(),
@@ -305,7 +302,7 @@ export function activate(context: vscode.ExtensionContext): void {
               });
             },
             timeoutMs: 5 * 60 * 1000,
-            signal: activeAbortController.signal,
+            signal: session.activeAbortController.signal,
           });
 
           Logger.info(`[webview] runPrint done: exit=${result.exitCode}, stdout=${result.stdout.length}b, streamed=${streamedAny}`);
@@ -371,7 +368,7 @@ export function activate(context: vscode.ExtensionContext): void {
             },
           });
         } finally {
-          activeAbortController = null;
+          session.activeAbortController = null;
           chatProvider.dispatchEvent({
             jsonrpc: "2.0",
             method: "webview/dispatchEvent",
@@ -395,7 +392,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       // Fall through to IPC for other message types (e.g. when CLI is connected)
-      ipcServer?.dispatchToWebviewOwner(eventName, data);
+      session.ipcServer?.dispatchToWebviewOwner(eventName, data);
     }
   );
 
@@ -560,10 +557,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // --- IPC context server ---
   const sessionId = crypto.randomUUID();
-  currentSessionId = sessionId;
+  session.currentSessionId = sessionId;
   setCurrentSessionId(sessionId);
   const ideName = detectIdeName();
-  currentIdeName = ideName;
+  session.currentIdeName = ideName;
   const socketPath = getSocketPath(sessionId, ideName);
   const mcpSocketPath = getSocketPath(sessionId + "-mcp", ideName);
   const authToken = crypto.randomUUID();
@@ -573,9 +570,9 @@ export function activate(context: vscode.ExtensionContext): void {
   cleanupStaleSockets(ideName);
 
   const contextProvider = new ContextProvider();
-  ipcServer = new IPCServer(contextProvider, socketPath, authToken);
+  session.ipcServer = new IPCServer(contextProvider, socketPath, authToken);
 
-  ipcServer.setWebviewDispatcher((eventPayload) => {
+  session.ipcServer.setWebviewDispatcher((eventPayload) => {
     chatProvider.dispatchEvent(eventPayload);
   });
 
@@ -584,8 +581,8 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       const ctx = await contextProvider.getContext();
       chatProvider.dispatchContext(ctx);
-    } catch {
-      // Context push is best-effort
+    } catch (err) {
+      Logger.warn("Context push failed:", err);
     }
   };
 
@@ -604,13 +601,13 @@ export function activate(context: vscode.ExtensionContext): void {
   // Push initial context once webview is resolved (deferred)
   setTimeout(pushContext, 1000);
 
-  mcpServer = new CmdMcpServer(mcpSocketPath, [
+  session.mcpServer = new CmdMcpServer(mcpSocketPath, [
     terminalTool,
     diffProposeTool,
   ]);
-  mcpServer.start();
+  session.mcpServer.start();
 
-  ipcServer.start()
+  session.ipcServer.start()
     .then(() => {
       const workspaceFolders =
         vscode.workspace.workspaceFolders?.map(
@@ -638,13 +635,13 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
   context.subscriptions.push(contextProvider);
-  context.subscriptions.push(ipcServer);
+  context.subscriptions.push(session.ipcServer);
 }
 
 export function deactivate(): void {
-  if (currentSessionId && currentIdeName) {
-    removeSessionFile(currentSessionId, currentIdeName);
+  if (session.currentSessionId && session.currentIdeName) {
+    removeSessionFile(session.currentSessionId, session.currentIdeName);
   }
-  ipcServer?.dispose();
-  mcpServer?.stop();
+  session.ipcServer?.dispose();
+  session.mcpServer?.stop();
 }

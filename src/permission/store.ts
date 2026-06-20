@@ -15,8 +15,8 @@ function getStorePath(): string {
   if (!fs.existsSync(dir)) {
     try {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    } catch {
-      // ignore
+    } catch (err) {
+      Logger.warn("Failed to create permission store directory:", err);
     }
   }
   return path.join(dir, "permissions.json");
@@ -46,8 +46,8 @@ function saveStore(store: Record<string, PermissionChoice>): void {
     fs.writeFileSync(storePath, JSON.stringify(store, null, 2), "utf-8");
     try {
       fs.chmodSync(storePath, 0o600);
-    } catch {
-      // best-effort
+    } catch (err) {
+      Logger.warn("Failed to set permission store permissions (best-effort):", err);
     }
   } catch (err) {
     Logger.error("Failed to save permissions store:", err);

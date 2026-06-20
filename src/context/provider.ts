@@ -8,6 +8,7 @@ import type {
   CursorInfo,
 } from "./protocol";
 import { getGitContext } from "./git";
+import { getRelativePath } from "../util/nodeUtil";
 
 function getWorkspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -17,13 +18,7 @@ function getWorkspaceName(): string | undefined {
   return vscode.workspace.name;
 }
 
-function getRelativePath(absolutePath: string): string {
-  const root = getWorkspaceRoot();
-  if (!root) return absolutePath;
-  return absolutePath.startsWith(root)
-    ? absolutePath.slice(root.length + 1)
-    : absolutePath;
-}
+
 
 function getTabSize(
   options: vscode.TextEditorOptions,

@@ -2,6 +2,9 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { stripAnsi } from "../chat/format";
+import { SessionManager } from "../sessionManager";
+
+const session = SessionManager.getInstance();
 
 export class ProposedDiffContentProvider implements vscode.TextDocumentContentProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -234,12 +237,10 @@ export function rejectDiffProposals(diffManager: StreamingDiffManager): void {
 
 // --- Current diff manager sharing ---
 
-let _currentDiffManager: StreamingDiffManager | null = null;
-
 export function setCurrentDiffManager(mgr: StreamingDiffManager | null): void {
-  _currentDiffManager = mgr;
+  session.currentDiffManager = mgr;
 }
 
 export function getCurrentDiffManager(): StreamingDiffManager | null {
-  return _currentDiffManager;
+  return session.currentDiffManager;
 }

@@ -1,7 +1,7 @@
 import * as cp from "node:child_process";
-import * as vscode from "vscode";
 import { getActiveCwd } from "../../config";
 import type { McpTool } from "../server";
+import { Logger } from "../../logger";
 
 export const terminalTool: McpTool = {
   name: "vscode_execute_terminal",
@@ -27,23 +27,40 @@ export const terminalTool: McpTool = {
     const cwd = (args.cwd as string) || getActiveCwd();
 
     // Log to output channel so the user sees it
-    const outputChannel = vscode.window.createOutputChannel("Command Code");
-    outputChannel.appendLine(`[MCP Terminal] $ ${command}`);
-    outputChannel.show(true);
+    Logger.info(`[MCP Terminal] $ ${command}`);
+    Logger.show(true);
 
     return new Promise((resolve) => {
-      cp.exec(command, { cwd, maxBuffer: 1024 * 1024 * 5 }, (error: cp.ExecException | null, stdout: string, stderr: string) => {
-        if (stdout) outputChannel.appendLine(stdout);
-        if (stderr) outputChannel.appendLine(`[Error Output]:\n${stderr}`);
-        if (error) outputChannel.appendLine(`[Process Error]:\n${error.message}`);
-
+      const child = cp.spawn(command, [], { cwd, shell: true });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => {
+        const str = chunk.toString("utf8");
+        stdout += str;
+        Logger.info(str);
+      });
+      child.stderr.on("data", (chunk) => {
+        const str = chunk.toString("utf8");
+        stderr += str;
+        Logger.error(str);
+      });
+      child.on("error", (error) => {
+        Logger.error(`[Process Error]:\n${error.message}`);
         resolve({
           content: [
             {
               type: "text",
-              text: `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}\n\nEXIT CODE: ${
-                error ? error.code || 1 : 0
-              }`,
+              text: `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}\n\nEXIT CODE: 1\n\nERROR:\n${error.message}`,
+            },
+          ],
+        });
+      });
+      child.on("close", (code) => {
+        resolve({
+          content: [
+            {
+              type: "text",
+              text: `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}\n\nEXIT CODE: ${code ?? 0}`,
             },
           ],
         });

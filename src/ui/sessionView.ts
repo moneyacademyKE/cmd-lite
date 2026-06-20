@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as vscode from "vscode";
+import { getActiveCwd } from "../config";
 
 const SESSION_PROJECTS_DIR = path.join(os.homedir(), ".commandcode", "projects");
 
@@ -162,16 +163,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
   }
 }
 
-function getActiveCwd(): string {
-  const activeEditor = vscode.window.activeTextEditor;
-  if (activeEditor) {
-    const folder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
-    if (folder) return folder.uri.fsPath;
-  }
-  const folders = vscode.workspace.workspaceFolders;
-  if (folders && folders.length > 0) return folders[0].uri.fsPath;
-  return process.cwd();
-}
+
 
 function buildCommand(label: string, command: string, icon: string): vscode.TreeItem {
   const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);

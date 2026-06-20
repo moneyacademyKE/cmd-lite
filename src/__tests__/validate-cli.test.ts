@@ -72,16 +72,15 @@ describe("validateCliPath logic", () => {
     }
   });
 });
-
 import { checkCliVersion } from "../cli/resolve";
 
 describe("checkCliVersion logic", () => {
-  it("returns compatible for version >= 0.39.0", () => {
+  it("returns compatible for version >= 0.39.0", async () => {
     const tmpFile = path.join(os.tmpdir(), `cmd-version-test-ok-${Date.now()}`);
     writeFileSync(tmpFile, "#!/bin/sh\necho 0.39.0");
     chmodSync(tmpFile, 0o755);
     try {
-      const result = checkCliVersion(tmpFile);
+      const result = await checkCliVersion(tmpFile);
       expect(result.compatible).toBe(true);
       expect(result.version).toBe("0.39.0");
     } finally {
@@ -89,12 +88,12 @@ describe("checkCliVersion logic", () => {
     }
   });
 
-  it("returns incompatible for version < 0.39.0", () => {
+  it("returns incompatible for version < 0.39.0", async () => {
     const tmpFile = path.join(os.tmpdir(), `cmd-version-test-bad-${Date.now()}`);
     writeFileSync(tmpFile, "#!/bin/sh\necho 0.38.2");
     chmodSync(tmpFile, 0o755);
     try {
-      const result = checkCliVersion(tmpFile);
+      const result = await checkCliVersion(tmpFile);
       expect(result.compatible).toBe(false);
       expect(result.version).toBe("0.38.2");
       expect(result.message).toContain("too old");
@@ -103,12 +102,12 @@ describe("checkCliVersion logic", () => {
     }
   });
 
-  it("returns compatible if version cannot be parsed", () => {
+  it("returns compatible if version cannot be parsed", async () => {
     const tmpFile = path.join(os.tmpdir(), `cmd-version-test-unparseable-${Date.now()}`);
     writeFileSync(tmpFile, "#!/bin/sh\necho hello world");
     chmodSync(tmpFile, 0o755);
     try {
-      const result = checkCliVersion(tmpFile);
+      const result = await checkCliVersion(tmpFile);
       expect(result.compatible).toBe(true);
     } finally {
       unlinkSync(tmpFile);

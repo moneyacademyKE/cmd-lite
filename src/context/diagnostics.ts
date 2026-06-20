@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { DiagnosticEntry, FileDiagnostics } from "./protocol";
+import { getRelativePath } from "../util/nodeUtil";
 
 function severityToString(
   severity: vscode.DiagnosticSeverity,
@@ -41,14 +42,7 @@ function toDiagnosticEntry(d: vscode.Diagnostic): DiagnosticEntry {
   };
 }
 
-function getRelativePath(absolutePath: string): string {
-  const root =
-    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!root) return absolutePath;
-  return absolutePath.startsWith(root)
-    ? absolutePath.slice(root.length + 1)
-    : absolutePath;
-}
+
 
 export function collectDiagnostics(
   filePaths?: string[],

@@ -8,6 +8,9 @@ import { markdownFromCli } from "./format";
 import { hasCodeProposal, StreamingDiffManager, setCurrentDiffManager } from "../diff/preview";
 
 import { readSessionState, writeSessionState, type ParticipantState } from "../cli/store";
+import { SessionManager } from "../sessionManager";
+
+const session = SessionManager.getInstance();
 
 export function registerChatParticipant(context: vscode.ExtensionContext): void {
   loadPersistedState();
@@ -130,37 +133,35 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
 }
 
 function readState(): ParticipantState {
-  const stored = currentSessionState;
+  const stored = session.currentSessionState;
   return stored ?? { permissionMode: "standard", model: undefined, planMode: false };
 }
 
 function updateState(next: ParticipantState): void {
-  currentSessionState = next;
+  session.currentSessionState = next;
 }
 
-let currentSessionState: ParticipantState | undefined;
-
 function persistState(): void {
-  if (currentSessionState) {
-    writeSessionState(currentSessionState);
+  if (session.currentSessionState) {
+    writeSessionState(session.currentSessionState);
   }
 }
 
 function loadPersistedState(): void {
   const stored = readSessionState();
   if (stored) {
-    currentSessionState = stored;
+    session.currentSessionState = stored;
   }
 }
 
 export function setParticipantPermissionMode(mode: PermissionMode): void {
   const state = readState();
-  currentSessionState = { ...state, permissionMode: mode, planMode: mode === "plan" };
+  session.currentSessionState = { ...state, permissionMode: mode, planMode: mode === "plan" };
 }
 
 export function setParticipantModel(model: string | undefined): void {
   const state = readState();
-  currentSessionState = { ...state, model };
+  session.currentSessionState = { ...state, model };
 }
 
 export function getParticipantModel(): string | undefined {

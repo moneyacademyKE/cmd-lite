@@ -149,8 +149,8 @@ export class IPCServer implements vscode.Disposable {
           // Remove stale socket file and retry once
           try {
             fs.unlinkSync(this.socketPath);
-          } catch {
-            // best-effort
+          } catch (err) {
+            this.log(`Failed to unlink stale socket file: ${err instanceof Error ? err.message : String(err)}`);
           }
           this.server = net.createServer((socket) =>
             this.handleConnection(socket),
@@ -238,7 +238,11 @@ export class IPCServer implements vscode.Disposable {
           return;
         }
 
-        await this.handleMessage(socket, messageStr, authTimeout);
+        try {
+          await this.handleMessage(socket, messageStr, authTimeout);
+        } catch (err) {
+          this.log(`Error handling message: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     });
   }
