@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- **Onboarding Start Session Button Polish**: Decomplected visual styles from inline properties to `.onboarding-start-session-btn` in `style.css`.
+- **Delightful Micro-Animations**: Configured satisfying active click scaling (`scale(0.98)`), hover expansion (`scale(1.02)`), transition easings, and accent glow shadows.
+- **Improved Keyboard Accessibility**: Added high-contrast `:focus-visible` outlines matching VS Code theme variables (`--vscode-focusBorder`).
+- **Visual Parity Test Assertions**: Expanded regression testing checking element presence, styling properties, and action event dispatch routing.
+
 ## 0.5.0
 
 - **Interactive Onboarding UI**: Replaced empty state with a glassmorphic onboarding welcome card inside chat histories, showing ASCII logos, quick action commands, and keyboard shortcut maps.
