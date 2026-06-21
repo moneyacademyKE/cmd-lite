@@ -151,4 +151,46 @@ Keep the Webview completely stateless by using a CSS-driven panel system.
 - **Problem**: When using rich webviews containing text inputs (like chat textareas), typing and scrolling are distinct developer concerns. Allowing the input element to consume all scroll keys traps focus and requires mouse interaction to scroll. Furthermore, clicking neutral areas focuses the `body` element which is styled with `overflow: hidden`, breaking standard browser keyboard scrolling.
 - **Solution**: Intercept navigation keys (`PageUp`, `PageDown`, `Ctrl+Arrows`) inside the input element keydown listener and programmatically scroll the target container. Add a global window keydown listener mapped to `getActiveScrollContainer()` to forward key scrolling events to the active container when focus is on non-input elements (e.g. `BODY`). Ensure visual scrollbars reference native VS Code CSS variable tokens to automatically adapt color contrast.
 
+---
+
+### Pure Data Logging Stream Pattern (Decomplecting UI)
+- **Problem**: Instantiating UI elements (like VS Code `OutputChannel`) directly inside business logic or tool executors (e.g. MCP terminal executions) complects domain logic with the editor's UI lifecycle, causing memory leaks and fragmented output panes. Furthermore, relying on `console.error` hides critical state failures from users.
+- **Solution**: Decomplect the logging mechanism. Establish a single, lazily-initialized singleton `Logger` utilizing modern structured logging (`vscode.LogOutputChannel`). Pass this logger down or import it globally, treating logging as a pure data stream. This ensures business logic remains ignorant of UI rendering while maintaining robust, user-visible diagnostics across the entire extension.
+
+---
+
+### Sandboxed Browser Verification Pattern
+- **Problem**: To verify web applications, run E2E tests, or browse documentation, agents need browser control. Packaging heavy Chromium/Playwright binaries inside the IDE extension couples the runtime context to the editor, violating decomplecting. Moreover, simulating coordinates on a physical GUI screen (`computer-use-mcp`) complects OS windows, resolutions, and system permissions with tool execution.
+- **Solution**: Dynamically provision browser automation via `@playwright/mcp` defined in `mcp.json` running over standard stdio using `npx -y`. Instruct the agent to prefer Playwright's locator queries and accessibility trees (`browser_snapshot`) over pixel coordinates or screenshot-only verification. This isolates web interaction inside a headless sandboxed browser process, preserving host OS simplicity.
+
+---
+
+### Atomic Local CLI Swapping Pattern
+- **Problem**: Unpacking CLI updates directly into the active executable folder complects files in active use with network/download operations, resulting in file locks, write collisions, or corrupted runtimes if download operations fail mid-flight.
+- **Solution**: Decouple the deployment from active execution. Download and extract the package to a separate directory (`cli-new`), verify that all core entrypoint files (e.g. `dist/index.mjs`) are present, swap the folder names synchronously to complete the transaction, and clean up the old directory (`cli-old`) in the background.
+
+---
+
+### Node ES-Module Executable Wrapping Pattern
+- **Problem**: Executing local Node.js binaries across diverse operating systems (Windows, macOS, Linux) traditionally requires packaging compiled platform binaries or writing fragile shell execution wrappers, which introduces accidental build complexity.
+- **Solution**: Wrap execution around the active extension host environment. If the resolved path points to a javascript script (e.g., ending with `.mjs` or `.js`), intercept the spawn routine, use `process.execPath` (the embedded Node binary) as the executable, and prepend the script path to the CLI command arguments. This guarantees cross-platform execution parity without shell dependency.
+
+---
+
+### Layout-Shift Resilient Scroll Anchoring Pattern
+- **Problem**: In dynamic webviews, content size changes (markdown rendering, image loading) trigger scroll events where the layout grows but `scrollTop` does not catch up immediately, complecting height reflows with manual user scroll up. This results in the auto-scroll state `wasNearBottom` being set to false falsely.
+- **Solution**: Decouple layout reflow scroll events from user scroll events. By checking if `container.scrollHeight` has changed while `container.scrollTop` remained equal to its previous value, we recognize height reflows and skip updates to the auto-scroll state variable.
+
+---
+
+### Target-Aware Keyboard Navigation Pattern
+- **Problem**: Forwarding all keyboard scroll commands (`PageUp`, `PageDown`, `ArrowUp`, `ArrowDown`) globally to the active panel's main scroll viewport prevents keyboard interactions inside focused or hovered nested scrollable components (like code blocks or diff contents).
+- **Solution**: Traverse the DOM hierarchy from the event target (`e.target`) up to the active container. If any nested element is scrollable (has vertical/horizontal overflow) and is not the main active scroll container, do not intercept or prevent default, allowing local native browser scrolling.
+
+---
+
+### Nested Scroll Isolation Pattern
+- **Problem**: Navigating or scrolling nested elements causes the gesture or scroll boundary to propagate to the parent page, causing the main chat panel layout to shift or jump when boundaries are hit.
+- **Solution**: Style nested scrollable components (diff wrappers, tool execution outputs, logs) with CSS `overscroll-behavior: contain;`. This isolates the scroll boundaries strictly to the target viewport.
+
 

@@ -7,12 +7,16 @@ export async function runCli(
   options: CliRunOptions = {},
 ): Promise<CliResult> {
   const cliPath = resolveCliPath();
+  const isJs = cliPath.endsWith(".mjs") || cliPath.endsWith(".js");
+  const execPath = isJs ? process.execPath : cliPath;
+  const execArgs = isJs ? [cliPath, ...args] : args;
+
   const cwd = options.cwd ?? process.cwd();
   const env = { ...process.env, ...(options.env ?? {}) };
   const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
 
   const startedAt = Date.now();
-  const child = spawn(cliPath, args, {
+  const child = spawn(execPath, execArgs, {
     cwd,
     env,
     stdio: ["pipe", "pipe", "pipe"],

@@ -78,3 +78,23 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 - **The Complected Way:** Hardcoding custom scrollbar styles that break visibility in different themes, and allowing the text area input to block scrolling keys.
 - **The Simple Way:** Map custom scrollbar styles to VS Code native CSS variables to automatically support contrast across light/dark themes. Implement a lightweight global keydown router that forwards navigation keys from the textarea input and global body element to the active panel's scroll container.
 
+### 18. Webview Visual Parity and Keyboard Shortcuts (v0.3.0)
+- **TUI styling projection**: Replicating CLI headers (ASCII logo and `# ` prefixes), prompt indicators (`❯`), and status loops (rotating spinner and duration timer) as pure CSS and DOM updates keeps the webview lightweight and framework-free.
+- **External input editor proxy (`Ctrl+G`)**: Adding a shortcut that invokes a native VS Code Input Box allows multi-line text editing while avoiding focus lockups or textarea constraints inside the webview iframe.
+- **Dynamic asynchronous metadata handshakes**: Fetching runtime context (like versions and active models) asynchronously after webview construction prevents extension startup blocks, updating the UI reactively once configuration values are resolved.
+- **Local status spinner animation**: Simulating execution progression with a Braille spinner and an elapsed duration timer inside the webview via simple setInterval loops reduces CPU overhead and avoids flooding the UDS IPC with frequent progress packets.
+- **Decoupled slash command routing**: Forwarding unknown slash commands directly to the CLI rather than validating them locally ensures the extension does not need updates when new commands are added to the CLI.
+- **Headless visual validation capture**: Running standalone HTML webviews inside Playwright headless browsers allows automated rendering audits and side-by-side CLI parity checks during testing.
+
+### 19. Local CLI Auto-Update and Bootstrapping (v0.4.0)
+- **Decoupled execution environments**: Storing local node CLI packages inside the extension's private `context.globalStorageUri` path unentangles execution from the user's global package manager configurations, system paths, and permission conflicts.
+- **Zero-dependency registry updates**: Fetching package metadata from the public NPM registry (`https.get`) and spawning standard native `tar -xzf` commands to extract tarballs provides lightweight, dependency-free installation logic that is highly performant and secure.
+- **Atomic swapping deployment**: Extracting downloaded packages into a separate temporary directory (`cli-new`), swapping folders synchronously, and recursively cleaning up the old folder ensures updates are transactional and prevents filesystem locks or data corruption if network operations fail.
+- **Background update scheduling**: Querying the registry asynchronously during activation prevents UI startup blockages, showing a non-blocking toast prompt and delegating the download/swap process to the VS Code Progress API if a new compatible CLI version is resolved.
+- **ES Module Node.js wrapping**: Spawning local CLI entrypoints (like ES modules ending with `.mjs` or `.js`) using `process.execPath` (embedded Node.js runner) allows consistent execution across Windows, macOS, and Linux without compiling binary files or altering global system path rules.
+
+### 20. Layout-Shift Resilient Scroll Anchoring and Key Routing (v0.5.0)
+- **Content Resize vs User Scroll Decoupling**: Tracking content size changes is complected when layout shifts trigger browser scroll events. By monitoring both `scrollTop` and `scrollHeight`, scroll container updates that mutate height without changing the scroll offset are recognized as reflows rather than user scrolls, preserving the `wasNearBottom` auto-scroll state cleanly.
+- **Nested Scroll Chain Containment**: Applying CSS `overscroll-behavior: contain;` on nested blocks (diffs, tool call logs, code blocks) isolates scrolling to the targeted element, preventing the parent chat panel from jumping when scrolling reaches boundaries.
+- **Target-Aware Keyboard Navigation**: Global window-level keyboard event handlers scroll the primary chat viewport but can hijack key actions inside nested code preview windows. Traversal of the DOM event path to verify if the event originated inside an active nested scrollable allows standard browser keyboard scrolling to execute locally.
+

@@ -3,7 +3,7 @@
   "name": "cmd-lite",
   "displayName": "CMD Lite",
   "description": "A coding agent with taste. Wrap the Command Code (`cmd`) CLI as a native VS Code experience.",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "publisher": "moneyacademyke",
   "license": "MIT",
   "repository": {
@@ -247,6 +247,11 @@
           "type": "string",
           "default": "cmd",
           "description": "Path to the `cmd` CLI binary. Override if you installed Command Code to a non-standard location."
+        },
+        "cmd-lite.localRegistryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Local repository directory path override for `cmd` CLI auto-updates. If set, tarballs are read from this directory instead of npm."
         },
         "cmd-lite.defaultModel": {
           "type": "string",
@@ -526,6 +531,7 @@
     "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.28.1",
     "eslint": "^8.57.0",
+    "playwright": "^1.61.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.9"
   },

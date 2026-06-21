@@ -62,6 +62,8 @@ const state: {
   inputDraft: string;
   agents: { name: string; task: string }[];
   continuousLearning: boolean;
+  cliVersion: string;
+  modelsLabel: string;
 } = {
   tokens: { prompt: 0, completion: 0, total: 0 },
   modelId: '',
@@ -84,6 +86,8 @@ const state: {
   inputDraft: '',
   agents: [],
   continuousLearning: true,
+  cliVersion: '',
+  modelsLabel: '',
 };
 
 function saveState() {
@@ -101,6 +105,8 @@ function saveState() {
     inputDraft: state.inputDraft,
     agents: state.agents,
     continuousLearning: state.continuousLearning,
+    cliVersion: state.cliVersion,
+    modelsLabel: state.modelsLabel,
   });
 }
 
@@ -117,6 +123,7 @@ function addOrUpdateMessage(m: MessageItem) {
 let isExecuting = false;
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let executionStartTime = 0;
+let streamingStartTime = 0;
 
 // Autocomplete State
 let autocompleteActive = false;
@@ -539,11 +546,27 @@ function setupScrollButton(container: HTMLElement): void {
   });
   container.parentElement?.appendChild(btn);
 
+  let lastScrollTop = container.scrollTop;
+  let lastScrollHeight = container.scrollHeight;
+
   // Scroll listener to update state and toggle button visibility
   container.addEventListener('scroll', () => {
+    const currentScrollTop = container.scrollTop;
+    const currentScrollHeight = container.scrollHeight;
+
+    // If the scrollHeight changed but scrollTop didn't, this is a content resize / layout reflow.
+    // We should NOT count this as a user scroll event.
+    if (currentScrollHeight !== lastScrollHeight && currentScrollTop === lastScrollTop) {
+      lastScrollHeight = currentScrollHeight;
+      return;
+    }
+
     const near = isNearBottom(container);
     wasNearBottom = near;
     btn.classList.toggle('visible', !near);
+
+    lastScrollTop = currentScrollTop;
+    lastScrollHeight = currentScrollHeight;
   });
 
   // Watch for any DOM changes inside the container (appended messages, syntax highlights, streaming text)
@@ -582,6 +605,13 @@ function updateHeader() {
   const tc = document.getElementById('token-count');
   if (tc)
     tc.innerText = `TOKENS // P ${state.tokens.prompt.toLocaleString()} / C ${state.tokens.completion.toLocaleString()} / ${state.tokens.total.toLocaleString()}`;
+
+  const hv = document.getElementById('header-version');
+  if (hv) hv.textContent = state.cliVersion || 'v0.0.0';
+  const hm = document.getElementById('header-models');
+  if (hm) hm.textContent = state.modelsLabel || 'loading...';
+  const hc = document.getElementById('header-cwd');
+  if (hc) hc.textContent = state.context.workspaceRoot || '~';
 }
 
 function updateFooter() {
@@ -612,6 +642,10 @@ function updateFooter() {
 
 function updateContextPanel() {
   const ctx = state.context;
+
+  // Update header CWD
+  const hc = document.getElementById('header-cwd');
+  if (hc) hc.textContent = ctx.workspaceRoot || '~';
 
   const gitBody = document.getElementById('context-git-body');
   if (gitBody) {
@@ -660,7 +694,12 @@ function updateContextPanel() {
   const diagBody = document.getElementById('context-diag-body');
   if (diagBody) {
     if (ctx.diagnosticsCount > 0) {
-      diagBody.innerHTML = `<span class="context-diag-error">&#x26A0; ${ctx.diagnosticsCount} issues</span>`;
+      diagBody.innerHTML = `
+        <div class="context-diag-row">
+          <span class="context-diag-error">&#x26A0; ${ctx.diagnosticsCount} issues</span>
+          <button class="context-diag-fix-btn" title="Fix diagnostics automatically">🔧 FIX</button>
+        </div>
+      `;
     } else {
       diagBody.innerHTML = '<span style="color:var(--accent)">&#x2713; No issues</span>';
     }
@@ -695,6 +734,11 @@ function formatDuration(ms: number): string {
     return `${minutes}m ${seconds}s`;
   }
   return `${seconds}s`;
+}
+
+function formatThoughtDuration(ms: number): string {
+  const seconds = Math.max(1, Math.round((ms) / 1000));
+  return seconds === 1 ? '1 second' : `${seconds} seconds`;
 }
 
 function startStatusTimer() {
@@ -809,7 +853,7 @@ function processMessageContentLight(raw: string): string {
     /<thought>([\s\S]*?)<\/thought>/gi,
     (_m: string, inner: string) => {
       const html = marked.parse(inner.trim()) as string;
-      return `<details class="step-accordion" open><summary>&#x1F914; Reasoning</summary><div class="thought-content">${html}</div></details>`;
+      return `<details class="step-accordion" open><summary>Thought ${streamingStartTime ? 'for ' + formatThoughtDuration(Date.now() - streamingStartTime) + ' ' : ''}[ctrl+o to expand]</summary><div class="thought-content">${html}</div></details>`;
     },
   );
 
@@ -863,7 +907,7 @@ function processMessageContent(raw: string): string {
     /<thought>([\s\S]*?)<\/thought>/gi,
     (_m: string, inner: string) => {
       const html = marked.parse(inner.trim()) as string;
-      return `<details class="step-accordion" open><summary>&#x1F914; Reasoning</summary><div class="thought-content">${html}</div></details>`;
+      return `<details class="step-accordion" open><summary>Thought ${streamingStartTime ? 'for ' + formatThoughtDuration(Date.now() - streamingStartTime) + ' ' : ''}[ctrl+o to expand]</summary><div class="thought-content">${html}</div></details>`;
     },
   );
 
@@ -917,6 +961,12 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
   if (!history) return;
   switchPanel('chat');
 
+  // Remove onboarding welcome if it exists
+  const onboarding = history.querySelector('.onboarding-welcome');
+  if (onboarding) {
+    onboarding.remove();
+  }
+
   // Determine if we were at the bottom before mutating the DOM
   if (m.role === 'user') {
     wasNearBottom = true;
@@ -931,11 +981,20 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
     history.appendChild(div);
   }
 
+  // Prepend ⠶ to system/agent responses (CLI visual parity)
+  let contentToRender = m.content;
+  if ((m.role === 'system' || m.role === 'agent') && 
+      !contentToRender.startsWith('⠶') &&
+      !contentToRender.startsWith('<img') &&
+      !contentToRender.startsWith('<div class="diff-widget"')) {
+    contentToRender = '⠶ ' + contentToRender;
+  }
+
   let parsedContent: string;
   try {
-    parsedContent = streaming ? processMessageContentLight(m.content) : processMessageContent(m.content);
+    parsedContent = streaming ? processMessageContentLight(contentToRender) : processMessageContent(contentToRender);
   } catch {
-    parsedContent = `<pre>${escapeHtml(m.content)}</pre>`;
+    parsedContent = `<pre>${escapeHtml(contentToRender)}</pre>`;
   }
 
   div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsedContent}</div>`;
@@ -1090,17 +1149,88 @@ function hydrateUI() {
   if (!history) return;
   
   history.innerHTML = '';
-  state.messages.forEach(m => {
-    const div = document.createElement('div');
-    div.id = m.id;
-    div.className = `message message-${m.role}`;
-    if (m.raw) {
-      div.dataset.raw = m.raw;
-    }
-    const parsed = processMessageContent(m.content);
-    div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsed}</div>`;
-    history.appendChild(div);
-  });
+  if (state.messages.length === 0) {
+    history.innerHTML = `
+      <div class="onboarding-welcome">
+        <div class="onboarding-logo-container">
+          <pre class="onboarding-ascii">
+ ██████╗███╗   ███╗██████╗ 
+██╔════╝████╗ ████║██╔══██╗
+██║     ██╔████╔██║██║  ██║
+██║     ██║╚██╔╝██║██║  ██║
+╚██████╗██║ ╚═╝ ██║██████╔╝
+ ╚═════╝╚═╝     ╚═╝╚═════╝ 
+          </pre>
+        </div>
+        <div class="onboarding-tagline">Your autonomous coding agent with taste</div>
+        
+        <div class="onboarding-section">
+          <h3>Quick Actions</h3>
+          <div class="onboarding-buttons">
+            <button class="onboarding-btn" data-prompt="/fix">
+              <div class="btn-header">
+                <span class="btn-icon">🔧</span>
+                <span class="btn-title">Fix Diagnostics</span>
+              </div>
+              <span class="btn-desc">Analyze and fix active workspace diagnostics</span>
+            </button>
+            <button class="onboarding-btn" data-prompt="/plan ">
+              <div class="btn-header">
+                <span class="btn-icon">📝</span>
+                <span class="btn-title">Plan Mode</span>
+              </div>
+              <span class="btn-desc">Propose an implementation plan for a task</span>
+            </button>
+            <button class="onboarding-btn" data-prompt="/taste">
+              <div class="btn-header">
+                <span class="btn-icon">👅</span>
+                <span class="btn-title">Inspect Taste</span>
+              </div>
+              <span class="btn-desc">View learned taste preferences for this repo</span>
+            </button>
+            <button class="onboarding-btn" data-prompt="/learn">
+              <div class="btn-header">
+                <span class="btn-icon">🧠</span>
+                <span class="btn-title">Learn Taste</span>
+              </div>
+              <span class="btn-desc">Learn code style patterns from folder</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <h3>Keyboard Shortcuts</h3>
+          <table class="shortcuts-table">
+            <tr><td><kbd>Cmd+Shift+\`</kbd> / <kbd>Ctrl+Shift+\`</kbd></td><td>Start New Session</td></tr>
+            <tr><td><kbd>Ctrl+T</kbd></td><td>Toggle Continuous Learning</td></tr>
+            <tr><td><kbd>Enter</kbd></td><td>Submit prompt</td></tr>
+            <tr><td><kbd>Shift+Enter</kbd></td><td>Insert new line</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Interrupt execution</td></tr>
+          </table>
+        </div>
+      </div>
+    `;
+  } else {
+    state.messages.forEach(m => {
+      const div = document.createElement('div');
+      div.id = m.id;
+      div.className = `message message-${m.role}`;
+      if (m.raw) {
+        div.dataset.raw = m.raw;
+      }
+      // Add ⠶ prefix for system/agent messages on rehydrate
+      let content = m.content;
+      if ((m.role === 'system' || m.role === 'agent') &&
+          !content.startsWith('⠶') &&
+          !content.startsWith('<img') &&
+          !content.startsWith('<div class="diff-widget"')) {
+        content = '⠶ ' + content;
+      }
+      const parsed = processMessageContent(content);
+      div.innerHTML = `<span class="message-role">${m.role}</span><div class="message-content">${parsed}</div>`;
+      history.appendChild(div);
+    });
+  }
   
   scrollToBottom(history);
   switchPanel(state.activePanel);
@@ -1201,10 +1331,9 @@ function attachEventListeners() {
         const arg = rawPrompt.slice(parts[0].length).trim();
 
         if (cmd === '/clear') {
-          const history = document.getElementById('chat-history');
-          if (history) history.innerHTML = '';
           state.messages = [];
           saveState();
+          hydrateUI();
           return;
         }
 
@@ -1212,14 +1341,35 @@ function attachEventListeners() {
           const helpMsg = {
             id: 'help-' + Date.now(),
             role: 'system',
-            content: `### Command Code CLI Webview Guide\n\n` +
+            content: `### Command Code Webview Guide\n\n` +
+                     `**Slash Commands**\n` +
                      `- \`/help\` - Show this help guide\n` +
                      `- \`/clear\` - Clear chat history\n` +
                      `- \`/plan <task>\` - Execute task in plan mode (dry-run)\n` +
                      `- \`/sessions\` - Switch to recent sessions panel\n` +
                      `- \`/agents\` - Switch to active agents board\n` +
-                     `- \`!<command>\` - Run direct bash commands (e.g. \`!npm test\`)\n` +
-                     `- \`@<filename>\` - Autocomplete file context paths\n`
+                     `- \`/taste\` - Manage Taste learning and usage\n` +
+                     `- \`/context\` - Show context window usage\n` +
+                     `- \`/status\` - Show comprehensive environment status\n` +
+                     `- \`/login\` - Log in to Command Code\n` +
+                     `- \`/logout\` - Log out of Command Code\n` +
+                     `- \`/update\` - Update Command Code to the latest version\n` +
+                     `- \`/exit\` - Exit Command Code\n\n` +
+                     `All other CLI slash commands (\`/goal\`, \`/memory\`, \`/taste\`, \`/skills\`, \`/mcp\`, \`/review\`, \`/pr-comments\`, \`/usage\`, \`/feedback\`, etc.) are routed to the CLI and handled there.\n\n` +
+                     `**Direct Bash**\n` +
+                     `- \`!<command>\` - Run bash commands (e.g. \`!npm test\`)\n\n` +
+                     `**Autocomplete**\n` +
+                     `- \`/<text>\` - Slash commands\n` +
+                     `- \`@<text>\` - File context paths\n` +
+                     `- \`!<text>\` - Bash history\n\n` +
+                     `**Keyboard Shortcuts**\n` +
+                     `- \`Shift+Tab\` - Cycle permission mode\n` +
+                     `- \`Ctrl+T\` - Toggle continuous learning\n` +
+                     `- \`Ctrl+O\` - Toggle expanded thought blocks\n` +
+                     `- \`Alt+P\` - Switch model\n` +
+                     `- \`Ctrl+G\` - Open input in external editor\n` +
+                     `- \`Esc\` - Interrupt execution\n` +
+                     `- \`Esc\` (×2) - Rewind to last checkpoint\n`
           };
           appendMessage(helpMsg);
           addOrUpdateMessage(helpMsg);
@@ -1254,9 +1404,16 @@ function attachEventListeners() {
           return;
         }
 
-        const cmdErr = { id: 'cmd-err-' + Date.now(), role: 'system', content: `Unknown command: ${cmd}. Type /help for options.` };
-        appendMessage(cmdErr);
-        addOrUpdateMessage(cmdErr);
+        // For /exit, /clear is already handled above and /sessions and /agents
+        // are handled locally. All other slash commands route to the CLI.
+        const cliSlashMsg = { id: 'local-' + Date.now(), role: 'user', content: rawPrompt };
+        appendMessage(cliSlashMsg);
+        addOrUpdateMessage(cliSlashMsg);
+        setExecutingState(true);
+        vscode.postMessage({
+          type: 'chatInput',
+          payload: { prompt: rawPrompt },
+        });
         return;
       }
 
@@ -1373,6 +1530,13 @@ function attachEventListeners() {
         if (anyOpen) d.removeAttribute('open');
         else d.setAttribute('open', '');
       });
+      return;
+    }
+
+    // Ctrl+G: open input in external editor ($EDITOR)
+    if (e.key === 'g' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      sendAction('open-in-editor');
       return;
     }
 
@@ -1554,6 +1718,29 @@ function attachEventListeners() {
       return;
     }
 
+    // If the target is inside a scrollable element that is NOT the main scroll container,
+    // let the native browser scroll handle it.
+    const target = e.target as HTMLElement;
+    if (target && target !== document.body) {
+      let current: HTMLElement | null = target;
+      const activeContainer = getActiveScrollContainer();
+      while (current && current !== document.body && current !== activeContainer) {
+        if (current.scrollHeight > current.clientHeight) {
+          const overflowY = window.getComputedStyle(current).overflowY;
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            return;
+          }
+        }
+        if (current.scrollWidth > current.clientWidth) {
+          const overflowX = window.getComputedStyle(current).overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll') {
+            return;
+          }
+        }
+        current = current.parentElement;
+      }
+    }
+
     const scrollContainer = getActiveScrollContainer();
     if (!scrollContainer) return;
 
@@ -1600,6 +1787,42 @@ function attachEventListeners() {
       e.preventDefault();
     }
   });
+
+  // Onboarding action buttons delegation
+  const onboardingChatHistory = document.getElementById('chat-history');
+  onboardingChatHistory?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.onboarding-btn') as HTMLButtonElement | null;
+    if (btn) {
+      const promptVal = btn.dataset.prompt;
+      if (promptVal) {
+        const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement | null;
+        if (chatInput) {
+          chatInput.value = promptVal;
+          chatInput.focus();
+          adjustTextareaHeight(chatInput);
+        }
+      }
+    }
+  });
+
+  // Diagnostics sidebar FIX button click delegation
+  const diagBody = document.getElementById('context-diag-body');
+  diagBody?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('context-diag-fix-btn') || target.closest('.context-diag-fix-btn')) {
+      if (isExecuting) return;
+      const rawPrompt = "/fix";
+      const msgId = 'local-' + Date.now();
+      const userMsg = { id: msgId, role: 'user', content: rawPrompt };
+      appendMessage(userMsg);
+      addOrUpdateMessage(userMsg);
+      setExecutingState(true);
+      vscode.postMessage({
+        type: 'chatInput',
+        payload: { prompt: rawPrompt },
+      });
+    }
+  });
 }
 
 // ─── UI Initialization ────────────────────────────────
@@ -1615,11 +1838,25 @@ function initUI() {
     <div class="crosshair br"></div>
 
     <div class="header">
-      <h2>Command Code</h2>
+      <div class="header-top">
+        <div class="header-logo">
+   ███  ███ █████
+   █ █  █ █ █
+   █    █ █ ███
+   █ █  █ █ █
+   ███  ███ █████
+        </div>
+        <div class="header-title-area">
+          <h2 class="header-title">Command Code</h2>
+          <span class="header-version" id="header-version">v0.0.0</span>
+          <span class="header-models" id="header-models">loading...</span>
+          <span class="header-cwd" id="header-cwd">~</span>
+        </div>
+      </div>
       <div class="metrics">
-        <span class="metric" id="token-count">TOKENS // P \${state.tokens.prompt.toLocaleString()} / C \${state.tokens.completion.toLocaleString()} / \${state.tokens.total.toLocaleString()}</span>
-        <span class="metric" id="model-name">MODEL // \${state.modelId || 'NONE'}</span>
-        <span class="metric" id="perm-mode">PERM // \${state.permissionMode || 'STANDARD'}</span>
+        <span class="metric" id="token-count">TOKENS // P 0 / C 0 / 0</span>
+        <span class="metric" id="model-name">MODEL // NONE</span>
+        <span class="metric" id="perm-mode">PERM // STANDARD</span>
       </div>
     </div>
 
@@ -1646,15 +1883,18 @@ function initUI() {
           </div>
           <div class="chat-input-container">
             <div id="autocomplete-list" class="autocomplete-list hidden"></div>
-            <textarea id="chat-input" placeholder="Type a message..."></textarea>
+            <div class="input-prompt-row">
+              <span class="input-prompt">&#x276F;</span>
+              <textarea id="chat-input" placeholder="Ask your question..."></textarea>
+            </div>
             <div class="prompt-tui-bar">
-              <span class="tui-shortcut-help">? FOR SHORTCUTS</span>
-              <span class="tui-learning-status">[CTRL+T] CONTINUOUS LEARNING</span>
-              <span class="tui-taste-toggle" id="tui-taste-toggle">&#9634; TASTE</span>
+              <span class="tui-shortcut-help">? for shortcuts</span>
+              <span class="tui-learning-status">[ctrl+t] continuous learning</span>
+              <span class="tui-taste-toggle" id="tui-taste-toggle">&#x25A1; TASTE</span>
             </div>
             <div class="chat-input-row">
               <div class="qr-code"></div>
-              <button id="send-btn">Execute</button>
+              <button id="send-btn">&#x276F; Execute</button>
             </div>
           </div>
         </div>
@@ -1743,6 +1983,8 @@ function initUI() {
     state.inputDraft = previousState.inputDraft || '';
     state.agents = previousState.agents || [];
     state.continuousLearning = previousState.continuousLearning !== undefined ? previousState.continuousLearning : state.continuousLearning;
+    state.cliVersion = previousState.cliVersion || '';
+    state.modelsLabel = previousState.modelsLabel || '';
     hydrateUI();
   } else {
     updateTasteUI();
@@ -1813,6 +2055,9 @@ window.addEventListener('message', (event: MessageEvent) => {
           role: string;
           chunk: string;
         };
+        // Track when streaming starts for thought duration
+        if (!streamingStartTime) streamingStartTime = Date.now();
+
         const history = document.getElementById('chat-history');
         if (!history) break;
         switchPanel('chat');
@@ -1840,6 +2085,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
       case 'StreamFinished': {
         setExecutingState(false);
+        streamingStartTime = 0;
         // Final full render: re-render streaming messages with marked.parse()
         // so the user sees fully formatted markdown at completion
         const { id } = payload as { id: string };
@@ -1869,7 +2115,7 @@ window.addEventListener('message', (event: MessageEvent) => {
       }
 
       case 'initState': {
-        const { modelId, permissionMode, tokens, sessionId, turnCount } =
+        const { modelId, permissionMode, tokens, sessionId, turnCount, cliVersion, modelsLabel } =
           payload as {
             modelId: string;
             permissionMode: string;
@@ -1880,12 +2126,16 @@ window.addEventListener('message', (event: MessageEvent) => {
             };
             sessionId?: string;
             turnCount?: number;
+            cliVersion?: string;
+            modelsLabel?: string;
           };
         state.modelId = modelId;
         state.permissionMode = permissionMode;
         state.tokens = tokens;
         state.currentSessionId = sessionId ?? null;
         state.turnCount = turnCount ?? 0;
+        if (cliVersion) state.cliVersion = cliVersion;
+        if (modelsLabel) state.modelsLabel = modelsLabel;
         saveState();
         updateHeader();
         updateFooter();

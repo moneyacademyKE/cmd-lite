@@ -31,6 +31,11 @@ vi.mock("vscode", () => {
       Left: 1,
       Right: 2,
     },
+    ProgressLocation: {
+      SourceControl: 1,
+      Window: 10,
+      Notification: 15,
+    },
     EventEmitter: class {
       event = vi.fn();
       fire = vi.fn();
@@ -44,6 +49,7 @@ vi.mock("vscode", () => {
       showErrorMessage: vi.fn(() => Promise.resolve()),
       showWarningMessage: vi.fn(() => Promise.resolve()),
       showTextDocument: vi.fn(() => Promise.resolve()),
+      withProgress: vi.fn((_options, task) => task({ report: vi.fn() })),
       createStatusBarItem: vi.fn(() => ({
         show: vi.fn(),
         hide: vi.fn(),
@@ -122,6 +128,7 @@ describe("extension tests", () => {
         push: vi.fn(),
       },
       extensionUri: { fsPath: "/tmp" },
+      globalStorageUri: { fsPath: "/tmp/storage", scheme: "file" },
       globalState: {
         get: vi.fn(() => ({})),
         update: vi.fn(() => Promise.resolve()),

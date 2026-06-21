@@ -144,3 +144,29 @@ To install and run this extension:
 - **Focus Dead-Zones Resolution**: Clicking neutral headers/footers/backgrounds focus the body element, which has `overflow: hidden`, breaking default keyboard scrolling. Implementing a global window keydown listener mapped to `getActiveScrollContainer()` forwards keyboard navigation keys to the active panel's scroll container.
 - **Theme-Decoupled Visual Scrollbars**: Styling custom scrollbars with arbitrary colors breaks contrast in different VS Code theme settings. Moving custom scrollbar CSS rules to target VS Code's native variable tokens (`--vscode-scrollbarSlider-*`) restores perfect visual contrast dynamically.
 
+## Webview Visual Parity and Keyboard Shortcuts (v0.3.0)
+- **TUI styling projection**: Replicating CLI headers (ASCII logo and `# ` prefixes), prompt indicators (`❯`), and status loops (rotating spinner and duration timer) as pure CSS and DOM updates keeps the webview lightweight and framework-free.
+- **External input editor proxy (`Ctrl+G`)**: Adding a shortcut that invokes a native VS Code Input Box allows multi-line text editing while avoiding focus lockups or textarea constraints inside the webview iframe.
+- **Dynamic asynchronous metadata handshakes**: Fetching runtime context (like versions and active models) asynchronously after webview construction prevents extension startup blocks, updating the UI reactively once configuration values are resolved.
+- **Local status spinner animation**: Simulating execution progression with a Braille spinner and an elapsed duration timer inside the webview via simple setInterval loops reduces CPU overhead and avoids flooding the UDS IPC with frequent progress packets.
+- **Decoupled slash command routing**: Forwarding unknown slash commands directly to the CLI rather than validating them locally ensures the extension does not need updates when new commands are added to the CLI.
+- **Headless visual validation capture**: Running standalone HTML webviews inside Playwright headless browsers allows automated rendering audits and side-by-side CLI parity checks during testing.
+
+## Local CLI Auto-Update and Bootstrapping (v0.4.0)
+- **Decoupled execution environments**: Storing local node CLI packages inside the extension's private `context.globalStorageUri` path unentangles execution from the user's global package manager configurations, system paths, and permission conflicts.
+- **Zero-dependency registry updates**: Fetching package metadata from the public NPM registry (`https.get`) and spawning standard native `tar -xzf` commands to extract tarballs provides lightweight, dependency-free installation logic that is highly performant and secure.
+- **Atomic swapping deployment**: Extracting downloaded packages into a separate temporary directory (`cli-new`), swapping folders synchronously, and recursively cleaning up the old folder ensures updates are transactional and prevents filesystem locks or data corruption if network operations fail.
+- **Background update scheduling**: Querying the registry asynchronously during activation prevents UI startup blockages, showing a non-blocking toast prompt and delegating the download/swap process to the VS Code Progress API if a new compatible CLI version is resolved.
+- **ES Module Node.js wrapping**: Spawning local CLI entrypoints (like ES modules ending with `.mjs` or `.js`) using `process.execPath` (embedded Node.js runner) allows consistent execution across Windows, macOS, and Linux without compiling binary files or altering global system path rules.
+
+## Layout-Shift Resilient Scroll Anchoring and Key Routing (v0.5.0)
+- **Content Resize vs User Scroll Decoupling**: Tracking content size changes is complected when layout shifts trigger browser scroll events. By monitoring both `scrollTop` and `scrollHeight`, scroll container updates that mutate height without changing the scroll offset are recognized as reflows rather than user scrolls, preserving the `wasNearBottom` auto-scroll state cleanly.
+- **Nested Scroll Chain Containment**: Applying CSS `overscroll-behavior: contain;` on nested blocks (diffs, tool call logs, code blocks) isolates scrolling to the targeted element, preventing the parent chat panel from jumping when scrolling reaches boundaries.
+- **Target-Aware Keyboard Navigation**: Global window-level keyboard event handlers scroll the primary chat viewport but can hijack key actions inside nested code preview windows. Traversal of the DOM event path to verify if the event originated inside an active nested scrollable allows standard browser keyboard scrolling to execute locally.
+
+## Onboarding, Autonomous Diagnostics, and Local Registry Updates (v0.6.0)
+- **Stateless Onboarding Cards**: Re-purposing the empty chat history state (`state.messages.length === 0`) to render a static, interactive onboarding card inside the webview eliminates the need for complex, heavy tour libraries and local tracking state.
+- **Diagnostics Aggregation as Prompt Promoters**: Implementing the `/fix` command via the extension host rather than custom background parsing loops unentangles error fixing. The extension gathers VS Code compile errors and warnings, formats them into a structured prompt, and passes it to the agent's standard `runPrint` loop. The agent fixes the files natively using its standard filesystem tools.
+- **Local Registry CLI Update Overrides**: Introducing the `"cmd-lite.localRegistryPath"` setting allows developer and offline updates. By checking if the local registry path exists, the extension reads version metadata from a local `package.json` and copies tarballs via native `fs.copyFileSync`, fully bypassing npmjs.org HTTPS requests.
+
+

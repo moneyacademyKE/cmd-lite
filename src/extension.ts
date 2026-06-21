@@ -14,6 +14,10 @@ import {
   validateCliPath,
   checkCliVersion,
   clearCliPathCache,
+  detectLocalCli,
+  setLocalCliPathOverride,
+  installOrUpdateLocalCli,
+  fetchLatestTarballInfo,
 } from "./cli/resolve";
 import { registerSessionCommands } from "./ui/sessionCommands";
 import { SessionTreeProvider, listSessions } from "./ui/sessionView";
@@ -25,6 +29,7 @@ import {
   registerTasteWatcher,
   TasteTreeProvider,
 } from "./taste/tasteView";
+import { collectDiagnostics } from "./context/diagnostics";
 import { ChatViewProvider, incrementTurnCount, setCurrentSessionId } from "./webview/ChatViewProvider";
 import { ContextProvider } from "./context/provider";
 import { IPCServer } from "./context/ipc-server";
@@ -128,6 +133,25 @@ async function handleWebviewAction(
       vscode.commands.executeCommand("cmd-lite.checkpoint.restore");
       break;
     }
+    case "open-in-editor": {
+      // Open the webview input in VS Code's native input box
+      const text = await vscode.window.showInputBox({
+        prompt: "Type a message for Command Code",
+        placeHolder: "Your prompt here... (multiline with Shift+Enter in some UIs)",
+        value: "",
+      });
+      if (text && text.trim()) {
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: {
+            type: "chatInput",
+            payload: text.trim(),
+          },
+        });
+      }
+      break;
+    }
     case "show-status": {
       try {
         const text = await getStatus(cwd);
@@ -154,7 +178,66 @@ async function handleWebviewAction(
   }
 }
 
-async function validateAndCheckCli(cliPath: string): Promise<void> {
+async function checkLatestVersionBackground(currentVersion: string): Promise<void> {
+  try {
+    const latest = await fetchLatestTarballInfo();
+    if (latest.version !== currentVersion) {
+      vscode.window.showInformationMessage(
+        `A new version of Command Code CLI is available (v${latest.version}). Update now?`,
+        "Update",
+        "Later"
+      ).then(async (choice) => {
+        if (choice === "Update") {
+          await vscode.commands.executeCommand("cmd-lite.update");
+        }
+      });
+    }
+  } catch (err) {
+    // ignore network errors for background checks
+  }
+}
+
+async function bootstrapLocalCli(context: vscode.ExtensionContext): Promise<void> {
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Setting up Command Code CLI...",
+      cancellable: false,
+    },
+    async (progress) => {
+      try {
+        progress.report({ message: "Bootstrapping dependencies..." });
+        const { version } = await installOrUpdateLocalCli(context.globalStorageUri, (pct) => {
+          progress.report({ message: `Downloading CLI... ${pct}%` });
+        });
+        vscode.window.showInformationMessage(`Command Code CLI successfully installed: v${version}`);
+        
+        const localPath = detectLocalCli(context.globalStorageUri);
+        if (localPath) {
+          setLocalCliPathOverride(localPath);
+          void vscode.window.setStatusBarMessage(`Command Code CLI resolved to local v${version}`, 3000);
+        }
+      } catch (err) {
+        vscode.window.showErrorMessage(
+          `Failed to bootstrap local CLI: ${err instanceof Error ? err.message : String(err)}. Please try running 'cmd-lite.update' manually.`
+        );
+      }
+    }
+  );
+}
+
+async function validateAndCheckCli(cliPath: string, context: vscode.ExtensionContext): Promise<void> {
+  const configured = vscode.workspace.getConfiguration("cmd-lite").get<string>("cliPath", "cmd").trim();
+  const isDefault = configured === "cmd" || configured === "command-code";
+
+  if (isDefault) {
+    const localPath = detectLocalCli(context.globalStorageUri);
+    if (!localPath) {
+      await bootstrapLocalCli(context);
+      return;
+    }
+  }
+
   const validation = validateCliPath(cliPath);
   if (!validation.valid) {
     vscode.window.showErrorMessage(
@@ -180,11 +263,18 @@ async function validateAndCheckCli(cliPath: string): Promise<void> {
           vscode.commands.executeCommand("cmd-lite.update");
         }
       });
+    } else if (isDefault && version.version) {
+      void checkLatestVersionBackground(version.version);
     }
   }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  const localCli = detectLocalCli(context.globalStorageUri);
+  if (localCli) {
+    setLocalCliPathOverride(localCli);
+  }
+
   const cliPath = resolveCliPath();
 
   void vscode.window.setStatusBarMessage(
@@ -192,7 +282,7 @@ export function activate(context: vscode.ExtensionContext): void {
     3000,
   );
 
-  validateAndCheckCli(cliPath);
+  validateAndCheckCli(cliPath, context);
 
   Logger.initialize("Command Code");
 
@@ -214,8 +304,105 @@ export function activate(context: vscode.ExtensionContext): void {
         (data as { type: string }).type === "chatInput"
       ) {
         const input = data as { type: "chatInput"; payload: { prompt: string; isBash?: boolean; plan?: boolean } };
-        const prompt = input.payload?.prompt;
+        let prompt = input.payload?.prompt;
         if (!prompt) return;
+
+        // Handle /fix command to automatically gather workspace diagnostics and run fixing agent
+        if (prompt.trim() === "/fix" || prompt.trim().startsWith("/fix ")) {
+          const extraInstruction = prompt.trim().slice(4).trim();
+          
+          const EXCLUDED_PATTERNS = [
+            /node_modules/i,
+            /\.git/i,
+            /dist/i,
+            /build/i,
+            /\.svelte-kit/i,
+            /\.next/i,
+            /\.nuxt/i
+          ];
+          
+          // Gather workspace diagnostics
+          const fileDiags = collectDiagnostics();
+          
+          // Filter out excluded folders and keep only Errors and Warnings
+          const filteredDiags = fileDiags.filter(fd => {
+            const isExcluded = EXCLUDED_PATTERNS.some(pattern => pattern.test(fd.file));
+            return !isExcluded;
+          }).map(fd => ({
+            ...fd,
+            diagnostics: fd.diagnostics.filter(d => d.severity === "error" || d.severity === "warning")
+          })).filter(fd => fd.diagnostics.length > 0);
+          
+          // Flatten diagnostics for sorting and capping
+          const allDiagnostics: { file: string; relativePath: string; diag: any }[] = [];
+          for (const fd of filteredDiags) {
+            for (const d of fd.diagnostics) {
+              allDiagnostics.push({ file: fd.file, relativePath: fd.relativePath, diag: d });
+            }
+          }
+          
+          // Sort Errors before Warnings
+          allDiagnostics.sort((a, b) => {
+            const severityA = a.diag.severity === "error" ? 0 : 1;
+            const severityB = b.diag.severity === "error" ? 0 : 1;
+            return severityA - severityB;
+          });
+          
+          const MAX_DIAGNOSTICS = 30;
+          const cappedDiagnostics = allDiagnostics.slice(0, MAX_DIAGNOSTICS);
+          const totalCollected = allDiagnostics.length;
+          
+          if (cappedDiagnostics.length === 0) {
+            const msgId = `fix-info-${Date.now()}`;
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: {
+                type: "StreamMessageChunk",
+                payload: { id: msgId, role: "system", chunk: `No compilation errors or warnings found in the active workspace.` },
+              },
+            });
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: { type: "StreamFinished", payload: { id: msgId } }
+            });
+            return;
+          }
+          
+          // Format diagnostics into a prompt for the agent, grouping by file path
+          let formattedPrompt = `Please resolve the compilation diagnostics (errors and warnings) in the active workspace.`;
+          if (extraInstruction) {
+            formattedPrompt += `\nAdditional instruction: "${extraInstruction}"`;
+          }
+          formattedPrompt += `\n\nDiagnostics found:`;
+          
+          const fileGroups: Record<string, { relativePath: string; diagnostics: any[] }> = {};
+          for (const item of cappedDiagnostics) {
+            if (!fileGroups[item.file]) {
+              fileGroups[item.file] = { relativePath: item.relativePath, diagnostics: [] };
+            }
+            fileGroups[item.file].diagnostics.push(item.diag);
+          }
+          
+          for (const [file, group] of Object.entries(fileGroups)) {
+            formattedPrompt += `\n\nFile: ${group.relativePath || file}`;
+            for (const d of group.diagnostics) {
+              const severity = d.severity.toUpperCase();
+              const line = d.range.startLine;
+              const col = d.range.startCol;
+              const source = d.source ? ` [${d.source}]` : "";
+              const code = d.code ? ` (${d.code})` : "";
+              formattedPrompt += `\n- Line ${line}, Col ${col}: [${severity}] ${d.message}${source}${code}`;
+            }
+          }
+          
+          if (totalCollected > MAX_DIAGNOSTICS) {
+            formattedPrompt += `\n\n*Note: Showing first ${MAX_DIAGNOSTICS} out of ${totalCollected} diagnostics in the workspace.*`;
+          }
+          
+          prompt = formattedPrompt;
+        }
 
         // Handle direct Bash execution mode
         if (input.payload?.isBash) {
@@ -546,7 +733,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (e.affectsConfiguration("cmd-lite.cliPath")) {
         clearCliPathCache();
         const newCliPath = resolveCliPath();
-        validateAndCheckCli(newCliPath);
+        validateAndCheckCli(newCliPath, context);
       }
       if (e.affectsConfiguration("cmd-lite.showStatusBar")) {
         if (showStatusBarEnabled()) statusBar.show();

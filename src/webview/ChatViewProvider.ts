@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { getEffectiveModel, getEffectivePermissionMode } from '../config';
+import { getEffectiveModel, getEffectivePermissionMode, getActiveCwd } from '../config';
+import { resolveCliPath, checkCliVersion } from '../cli/resolve';
 import type { EditorContext } from '../context/protocol';
 import { Logger } from '../logger';
 
@@ -31,11 +32,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'cmd-lite.chatView';
 
   private _view?: vscode.WebviewView;
+  private _cliVersion = '';
+  private _modelsLabel = '';
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _onEvent?: (eventName: string, data: unknown) => void
   ) {}
+
+  private async _fetchCliInfo() {
+    try {
+      const cliPath = resolveCliPath();
+      const versionResult = await checkCliVersion(cliPath);
+      this._cliVersion = versionResult.version || '';
+      this._modelsLabel = this._buildModelsLabel();
+    } catch {
+      this._cliVersion = '';
+      this._modelsLabel = '';
+    }
+  }
+
+  private _buildModelsLabel(): string {
+    const model = getEffectiveModel();
+    const parts: string[] = [];
+    if (model) {
+      const short = model.split('/').pop() || model;
+      parts.push(short);
+    }
+    parts.push('taste-1');
+    return parts.join(' · ');
+  }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -74,8 +100,38 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           tokens: { prompt: 0, completion: 0, total: 0 },
           sessionId: session.currentSessionId ?? '',
           turnCount: session.turnCount,
+          cliVersion: this._cliVersion,
+          modelsLabel: this._modelsLabel,
         }
       }
+    });
+
+    // Fetch CLI version asynchronously and push when ready
+    this._fetchCliInfo().then(() => {
+      this.dispatchEvent({
+        jsonrpc: "2.0",
+        method: "webview/dispatchEvent",
+        params: {
+          type: "initState",
+          payload: {
+            modelId: getEffectiveModel() ?? '',
+            permissionMode: getEffectivePermissionMode(),
+            tokens: { prompt: 0, completion: 0, total: 0 },
+            sessionId: session.currentSessionId ?? '',
+            turnCount: session.turnCount,
+            cliVersion: this._cliVersion,
+            modelsLabel: this._modelsLabel,
+          }
+        }
+      });
+      this.dispatchContext({
+        timestamp: Date.now(),
+        workspace: { rootPath: getActiveCwd(), name: '' },
+        activeFile: null,
+        selection: null,
+        openFiles: [],
+        git: null,
+      });
     });
   }
 

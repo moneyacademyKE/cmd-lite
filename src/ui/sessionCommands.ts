@@ -9,7 +9,7 @@ import {
   whoami,
 } from "../cli/commands";
 import { getActiveCwd } from "../config";
-import { resolveCliPath } from "../cli/resolve";
+import { resolveCliPath, installOrUpdateLocalCli } from "../cli/resolve";
 import { startInteractiveSession } from "../permission/interactive";
 import type { StatusBar } from "./statusBar";
 import { type SessionTreeProvider, type SessionTreeItem, getJsonlPathForSession } from "./sessionView";
@@ -179,15 +179,53 @@ export function registerSessionCommands(
     }),
 
     vscode.commands.registerCommand("cmd-lite.update", async () => {
-      statusBar.setBusy(true);
-      try {
-        const result = await updateCli(getActiveCwd());
-        vscode.window.showInformationMessage(
-          result.stdout.trim() || result.stderr.trim() || "Update complete.",
-        );
-      } finally {
-        statusBar.setBusy(false);
+      const configured = vscode.workspace
+        .getConfiguration("cmd-lite")
+        .get<string>("cliPath", "cmd")
+        .trim();
+
+      if (configured && configured !== "cmd" && configured !== "command-code") {
+        statusBar.setBusy(true);
+        try {
+          const result = await updateCli(getActiveCwd());
+          vscode.window.showInformationMessage(
+            result.stdout.trim() || result.stderr.trim() || "Update complete.",
+          );
+        } catch (err) {
+          vscode.window.showErrorMessage(
+            `Update failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+        } finally {
+          statusBar.setBusy(false);
+        }
+        return;
       }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Updating Command Code CLI...",
+          cancellable: false,
+        },
+        async (progress) => {
+          statusBar.setBusy(true);
+          try {
+            progress.report({ message: "Connecting to registry..." });
+            const { version } = await installOrUpdateLocalCli(context.globalStorageUri, (pct) => {
+              progress.report({ message: `Downloading... ${pct}%` });
+            });
+            vscode.window.showInformationMessage(
+              `Command Code CLI successfully updated to v${version}`
+            );
+          } catch (err) {
+            vscode.window.showErrorMessage(
+              `Failed to update CLI: ${err instanceof Error ? err.message : String(err)}`
+            );
+          } finally {
+            statusBar.setBusy(false);
+          }
+        }
+      );
     }),
   );
 
