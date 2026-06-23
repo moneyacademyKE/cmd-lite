@@ -30,6 +30,7 @@ import {
   TasteTreeProvider,
 } from "./taste/tasteView";
 import { collectDiagnostics } from "./context/diagnostics";
+import type { DiagnosticEntry } from "./context/protocol";
 import { ChatViewProvider, incrementTurnCount, setCurrentSessionId } from "./webview/ChatViewProvider";
 import { ContextProvider } from "./context/provider";
 import { IPCServer } from "./context/ipc-server";
@@ -345,7 +346,7 @@ export function activate(context: vscode.ExtensionContext): void {
           })).filter(fd => fd.diagnostics.length > 0);
           
           // Flatten diagnostics for sorting and capping
-          const allDiagnostics: { file: string; relativePath: string; diag: any }[] = [];
+          const allDiagnostics: { file: string; relativePath: string; diag: DiagnosticEntry }[] = [];
           for (const fd of filteredDiags) {
             for (const d of fd.diagnostics) {
               allDiagnostics.push({ file: fd.file, relativePath: fd.relativePath, diag: d });
@@ -388,7 +389,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           formattedPrompt += `\n\nDiagnostics found:`;
           
-          const fileGroups: Record<string, { relativePath: string; diagnostics: any[] }> = {};
+          const fileGroups: Record<string, { relativePath: string; diagnostics: DiagnosticEntry[] }> = {};
           for (const item of cappedDiagnostics) {
             if (!fileGroups[item.file]) {
               fileGroups[item.file] = { relativePath: item.relativePath, diagnostics: [] };

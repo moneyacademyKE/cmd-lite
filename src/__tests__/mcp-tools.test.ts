@@ -25,7 +25,7 @@ vi.mock("vscode", () => {
       findFiles: vi.fn(),
     },
     RelativePattern: class {
-      constructor(public base: any, public pattern: string) {}
+      constructor(public base: unknown, public pattern: string) {}
     },
     DiagnosticSeverity: mockDiagnosticSeverity,
   };
