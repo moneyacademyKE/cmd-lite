@@ -215,4 +215,15 @@ Keep the Webview completely stateless by using a CSS-driven panel system.
 - **Problem**: When absolute or nested scroll elements are mounted inside container wrappers that lack explicit heights or flex configurations, the scroll container overflows past the screen bounds. The browser clips the container, causing layout cut-offs and preventing the scrollbar from showing.
 - **Solution**: Set the root container (e.g. `#app`) to fill the parent bounds (`height: 100%; width: 100%`) and style it as a flex column (`display: flex; flex-direction: column; overflow: hidden`). Any inner scroll container styled with `flex: 1; overflow-y: auto` will be correctly constrained to the viewport size, enabling native scrolling behavior and correct component positions.
 
+---
+
+### Local Extension VSIX Deployment Pattern
+- **Problem**: In integration or visual GUI testing environments, updates made to extension files in the repository workspace are not picked up by the running instance of the IDE. This leads to caching/state stale issues where visual tests run against outdated extension builds.
+- **Solution**: Package the extension as a VSIX and explicitly re-install it into the testing IDE instance before executing visual tests:
+  1. Compile the extension via `pnpm run build`.
+  2. Generate the `.vsix` file using `vsce package --no-dependencies`.
+  3. Re-install the VSIX locally using the IDE's CLI tool (e.g. `"/Applications/Antigravity IDE.app/Contents/Resources/app/bin/antigravity-ide" --install-extension <vsix-file>`).
+  4. Reload the window using AppleScript to trigger `Developer: Reload Window`, forcing the IDE to reload the extension host and activate the new code.
+
+
 
