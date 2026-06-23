@@ -12,9 +12,15 @@
 
 (defn capture-screenshot [filename]
   (println "Capturing screenshot:" filename)
-  (let [res (sh "screencapture" "-x" "-o" filename)]
+  (let [temp-filename-2 (str/replace filename #"\.png$" "-2.png")
+        res (sh "screencapture" "-x" "-o" filename temp-filename-2)]
     (if (zero? (:exit res))
-      (println "Screenshot saved successfully.")
+      (do
+        (println "Screenshot saved successfully.")
+        (let [file2 (java.io.File. temp-filename-2)]
+          (when (.exists file2)
+            (println "Second screen detected. Swapping screen 2 to primary visual check.")
+            (sh "mv" temp-filename-2 filename))))
       (println "Failed to save screenshot:" (:err res)))))
 
 (defn run-test []
@@ -23,6 +29,9 @@
   ;; Step 1: Activate Antigravity IDE and focus Chat View
   (run-applescript
    "tell application \"Antigravity IDE\" to activate
+    tell application \"System Events\"
+        set frontmost of process \"Electron\" to true
+    end tell
     delay 2
     tell application \"System Events\"
         -- Open command palette
