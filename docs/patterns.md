@@ -211,4 +211,8 @@ Keep the Webview completely stateless by using a CSS-driven panel system.
 - **Problem**: AppleScript visual automation runs typically use hardcoded delays (such as `sleep 45000`) to wait for background execution or code generation to complete, which complects execution latency with automated test execution, leading to slow runs or early test cut-offs.
 - **Solution**: Implement an asynchronous/polling loop that repeatedly queries the filesystem for the presence and non-zero size of expected output files, continuing execution immediately on detection or timing out if a threshold is exceeded.
 
+### Flex-Layout Viewport Constraining Pattern
+- **Problem**: When absolute or nested scroll elements are mounted inside container wrappers that lack explicit heights or flex configurations, the scroll container overflows past the screen bounds. The browser clips the container, causing layout cut-offs and preventing the scrollbar from showing.
+- **Solution**: Set the root container (e.g. `#app`) to fill the parent bounds (`height: 100%; width: 100%`) and style it as a flex column (`display: flex; flex-direction: column; overflow: hidden`). Any inner scroll container styled with `flex: 1; overflow-y: auto` will be correctly constrained to the viewport size, enabling native scrolling behavior and correct component positions.
+
 
