@@ -103,4 +103,14 @@ We evaluated adding SolidJS and Partytown to the VS Code Webview to handle UI re
 - **Unified Integration Orchestration**: Composing separate visual layout tests and code generation dogfooding runs into a single Babashka runner script (`run-all-dogfood.clj`) with fail-fast propagation guarantees that structural layout changes are visually verified before starting longer code generation task loops.
 - **Registry-Driven Auto-Updates**: By validating that the local CLI package version matches the registry version (or copying overrides if configured) and automating the palette trigger (`Update Command Code CLI`), end-to-end auto-update capabilities can be fully validated under realistic dependency download conditions.
 
+### 22. Unicode-Aware Grapheme Truncation (v0.5.9)
+- **Code-Unit vs Grapheme Decoupling**: Traditional Javascript string truncation using `.slice()` or `.substring()` operates on 16-bit code units, which splits surrogate pairs and Zero-Width Joiner (ZWJ) emojis, producing corrupted glyphs. Operating on grapheme clusters via `Intl.Segmenter` decouples the logical display count from physical UTF-16 code units.
+- **CRLF & Multi-Line Boundary Safety**: Carriage Return + Line Feed (`\r\n`) visually represents a single newline but consists of two code points. `Intl.Segmenter` handles CRLF as a single grapheme cluster. This preserves line integrity and avoids splitting the CR and LF units when truncating near newlines.
+- **Defensive Parameter Boundaries**: Enforcing negative limits validation (throwing on `maxLength < 0`) prevents out-of-bounds index slicing and maintains strict boundary execution rules.
+
+### 23. Cross-Platform Path Sanitization (v0.6.0)
+- **Zero-Dependency Portability**: Implementing path normalization logic using pure string replacement and regular expressions instead of Node's native `path` module keeps utilities completely portable, enabling them to execute seamlessly in both Node.js and sandboxed browser/webview environments.
+- **Root-Preservation Logic**: Trimming trailing slashes blindly can corrupt paths that represent directory roots (e.g. `/` or Windows drive paths like `C:/`). Using targeted checks (`sanitized === "/"` and `/^[a-zA-Z]:\/$/`) prior to trimming guarantees root boundary preservation.
+- **Windows and POSIX Standardization**: Converting all backslashes (`\`) to forward slashes (`/`) standardizes path formats early, making duplicate separator collapsing (`/\/+/g`) straightforward and reliable.
+
 

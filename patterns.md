@@ -299,6 +299,13 @@
 - **Context**: AppleScript visual automation runs typically use hardcoded delays (such as `sleep 45000`) to wait for background execution or code generation to complete, which complects execution latency with automated test execution, leading to slow runs or early test cut-offs.
 - **Solution**: Implement an asynchronous/polling loop that repeatedly queries the filesystem for the presence and non-zero size of expected output files, continuing execution immediately on detection or timing out if a threshold is exceeded.
 
+---
+
+## Cross-Platform Path Sanitization Pattern
+- **Context**: Path delimiters vary between Windows (`\`) and POSIX (`/`), and duplicate separators or unexpected trailing slashes can break configuration paths or resource loaders. Importing the native Node `path` module inside shared code introduces environment coupling, making utilities non-portable to browser sandboxes or edge runtimes, while platform-dependent normalization behaves inconsistently.
+- **Solution**: Implement path sanitization as a pure, zero-dependency string function. Standardize all backslashes to forward slashes, collapse consecutive slashes using regular expressions, detect root markers (like `/` or Windows drive indicators `C:/` or `d:/`), and trim trailing slashes strictly for non-root paths.
+
+
 
 
 
