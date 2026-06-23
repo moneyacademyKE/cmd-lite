@@ -61,12 +61,17 @@
 (defn trigger-cli-update []
   (println "Triggering CLI update via command palette...")
   (run-applescript
-   "tell application \"System Events\"
+   "tell application \"Antigravity IDE\" to activate
+    tell application \"System Events\"
+        set frontmost of process \"Electron\" to true
+    end tell
+    delay 1.5
+    tell application \"System Events\"
         -- Open command palette
         keystroke \"p\" using {command down, shift down}
         delay 1.5
         -- Trigger CLI Update command
-        keystroke \"Command Code: Update Command Code CLI\"
+        keystroke \"Update Command Code CLI\"
         delay 1.5
         key code 36 -- Press Enter
         delay 2
@@ -95,7 +100,8 @@
 (defn cleanup-target-files []
   (println "Cleaning up target files for a fresh dogfooding run...")
   (sh "git" "checkout" "src/util/util.ts")
-  (sh "rm" "-rf" "src/tests/"))
+  (sh "git" "checkout" "src/tests/util.test.ts")
+  (sh "rm" "-f" "src/tests/jsonl.test.ts"))
 
 (defn run-dogfood []
   (println "=== Starting CMD Lite Visual UI Dogfooding Run ===")
@@ -122,7 +128,7 @@
     (if (and latest-ver (not= local-ver latest-ver))
       (do
         (trigger-cli-update)
-        (wait-for-cli-update latest-ver 45))
+        (wait-for-cli-update latest-ver 120))
       (println "CLI is already at the latest version or registry lookup failed.")))
 
   ;; Start/Restart session to clean state
