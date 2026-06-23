@@ -173,6 +173,34 @@
       (println "Warning: Some tests failed:" (:err test-res))))
 
   (capture-screenshot "scripts/dogfood-visual.png")
-  (println "=== CMD Lite Visual UI Dogfooding Run Complete ==="))
+
+  ;; Step 4: Test visual scrolling inside the dogfooding results view
+  (println "Testing keyboard scrolling up...")
+  (run-applescript
+   "tell application \"System Events\"
+        -- Press PageUp key multiple times to scroll up
+        key code 116 -- PageUp
+        delay 0.5
+        key code 116 -- PageUp
+        delay 0.5
+        key code 116 -- PageUp
+        delay 1
+    end tell")
+  (capture-screenshot "scripts/dogfood-visual-scroll-up.png")
+
+  (println "Testing keyboard scrolling back down...")
+  (run-applescript
+   "tell application \"System Events\"
+        -- Press PageDown key multiple times to scroll down
+        key code 121 -- PageDown
+        delay 0.5
+        key code 121 -- PageDown
+        delay 0.5
+        key code 121 -- PageDown
+        delay 1
+    end tell")
+  (capture-screenshot "scripts/dogfood-visual-scroll-down.png")
+
+  (println "=== CMD Lite Visual UI Dogfooding Run Complete ===")))
 
 (run-dogfood)
