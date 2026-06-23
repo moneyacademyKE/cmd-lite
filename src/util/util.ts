@@ -31,6 +31,25 @@ export function parseJsonLinesDefensive(jsonl: string): Record<string, unknown>[
 }
 
 
+export function formatJsonLines(records: Record<string, unknown>[]): string {
+  const lines: string[] = [];
+  for (const record of records) {
+    if (typeof record !== "object" || record === null || Array.isArray(record)) continue;
+    if (Object.keys(record).length === 0) continue;
+    lines.push(JSON.stringify(record));
+  }
+  return lines.join("\n");
+}
+
+export function filterJsonLines(
+  jsonl: string,
+  predicate: (record: Record<string, unknown>) => boolean,
+): string {
+  const records = parseJsonLinesDefensive(jsonl);
+  const filtered = records.filter(predicate);
+  return formatJsonLines(filtered);
+}
+
 export function truncateString(str: string, maxLength: number): string {
   if (maxLength < 0) {
     throw new Error("maxLength must be non-negative");
