@@ -525,6 +525,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "package": "vsce package --no-dependencies",
+    "publish": "bb scripts/publish.clj",
     "lint": "eslint src --ext .ts"
   },
   "devDependencies": {
@@ -534,6 +535,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vscode/vsce": "^2.22.0",
+    "ovsx": "^1.0.2",
     "esbuild": "^0.28.1",
     "eslint": "^8.57.0",
     "playwright": "^1.61.0",

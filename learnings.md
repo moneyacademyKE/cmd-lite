@@ -221,3 +221,14 @@ To install and run this extension:
 ## Interactive JS CLI Invocation & ESLint Type Safety (v0.6.2)
 - **Interactive JS/MJS CLI Invocation in Editor Terminals**: Spawning interactive terminal sessions (`cmd-lite.start`) or login shell sequences (`cmd-lite.login`) with a resolved `cliPath` pointing to a local ES Module/JavaScript file (`.mjs`/`.js`) fails to execute in standard shells. Prefixing the terminal command with `process.execPath` (the editor's active Node binary) ensures portable execution of local bootstrapped CLIs.
 - **ESLint `any` Type Warning Mitigation**: Using dedicated narrowing types (like a `ScrollableElement` interface extending `HTMLElement`) and casting mock objects to intermediate types (like `unknown as vscode.WorkspaceConfiguration`) completely eliminates type pollution and achieves a zero-warning compiler status.
+
+## VS Code Marketplace Publishing & CI/CD Pipeline (v0.6.3)
+- **CI/CD Package Manager Alignment**: To conform to the "Never use npm" rule and prevent preinstall-hook failures in the CI pipeline, we refactored `.github/workflows/ci.yml` from `npm ci` to `pnpm install --frozen-lockfile`. We integrated `pnpm/action-setup` to download and cache dependencies.
+- **Pre-flight Publishing Validation**: Rather than allowing direct local publishing without tests, we implemented a pre-flight validation runner script `scripts/publish.clj` using Babashka. It programmatically asserts git status, checks TypeScript compatibility (`pnpm run typecheck`), checks linter compliance (`pnpm run lint`), executes testing (`pnpm test`), and packages the extension.
+- **Continuous Deployment Automation**: We set up `.github/workflows/release.yml` triggered on tags matching `v*`. The workflow automates publishing via `@vscode/vsce` CLI, fetching the Personal Access Token safely from `secrets.VSCE_PAT` configured in GitHub Secrets.
+
+## Open VSX & Dual-Registry Publishing (v0.6.4)
+- **VSIX Artifact Reusability**: Rather than running packaging scripts multiple times (which wastes computing overhead and risks environmental variance), we compile and package the extension *once* to a single versioned `.vsix` file. We then pass that exact file path to both `vsce publish -i <file>` and `ovsx publish -i <file>` to guarantee 100% parity across registries.
+- **Dynamic Version Extraction in CI/CD**: To avoid hardcoding version strings or pulling tags via fragile shell parsing, we read the version directly from `package.json` inside GitHub Actions steps using `node -p "require('./package.json').version"`. This dynamically maps the release payload to the correct pre-packaged `.vsix` filename.
+- **Tooling Version Locking**: Instead of using dynamic tools like `npx` or `pnpm dlx` that fetch latest versions at runtime, we added `ovsx` directly to `devDependencies` in `package.json`. This enforces deterministic execution of the registry publishing tool.
+

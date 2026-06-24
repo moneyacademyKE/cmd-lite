@@ -324,3 +324,19 @@
 - **Context**: Using loose `any` casts to mock complex third-party API types (like `vscode.WorkspaceConfiguration` or `vscode.Uri` in tests) or to store custom properties on HTMLElement nodes (like `wasNearBottom` for scrolling) causes TypeScript compilation warning pollution.
 - **Solution**: Avoid `any` by defining specialized interfaces (e.g. `ScrollableElement extends HTMLElement`) for elements with custom state properties, and casting mocks to their target types using intermediate `unknown` assertions (`mock as unknown as TargetType`).
 
+---
+
+## Decomplecting Publishing & Pre-flight Verification Pattern
+- **Context**: Relying on ad-hoc commands to package and publish extensions directly from developer environments couples releases to local state, node versions, uncommitted files, and manual PAT exposure. This leads to accidental release contamination or credential leaks.
+- **Solution**: Decomplect release gates into a two-part system:
+  1. A local pre-flight runner (`scripts/publish.clj`) written in a sandboxed scripting language (Babashka) that programmatically asserts clean git trees, compiles, lints, runs tests, packages to VSIX, and guides user flow.
+  2. A fully automated, containerized CI/CD workflow (`.github/workflows/release.yml`) triggered strictly on version tags (`v*`) that downloads dependencies via `pnpm install --frozen-lockfile` (complying with `"Never use npm"` rules), builds, and publishes using encrypted repo secrets (`VSCE_PAT`).
+
+---
+
+## Single VSIX Artifact Reusability Pattern
+- **Context**: When publishing to multiple registries (like VS Code Marketplace and Open VSX), compiling and packaging the extension separately for each target environment complects deployment. It increases resource consumption and risks shipping mismatching versions if the build runner's environment changes mid-run.
+- **Solution**: Decouple the packaging phase from the registry uploading phase. Package the extension *once* to generate a versioned `.vsix` file. Pass that exact same packaged file as an input argument (using `-i` / `--packagePath`) to both publishing runners. This guarantees identical binary assets across all platforms.
+
+
+
