@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.4
+
+- **Interactive JS/MJS CLI Invocation in Terminals**: Transparently prefixes terminal launches with `node` when launching `.js`/`.mjs` entrypoints, resolving Electron helper process trace trap crashes in standard interactive shells.
+- **Settings-Only Model Resolution**: Decoupled default model resolution checks from process environment overrides, ensuring the extension respects user settings and allows the local CLI process to natively fallback to its own model defaults.
+- **Strict Type Verification & ESLint Warning Removal**: Resolved all 24 typescript `any` warnings across the webview `main.ts` and unit test suites, enforcing strict interface compliance.
+- **Unicode-Aware Grapheme Truncation**: Integrated `Intl.Segmenter` for safe string truncation, preventing surrogate pair splits, ZWJ emoji corruption, and CRLF boundary errors.
+- **Cross-Platform Path Sanitization**: Added a zero-dependency path sanitizer regex utility to normalize path separators across Windows and POSIX while preserving directory root contexts.
+- **Diagnostics and File Search MCP Tools**: Exposed active workspace diagnostics and search queries as standard MCP tools to enhance CLI agent capabilities.
+- **Flex-Layout Viewport Constraining**: Configured the webview main container with a flex column layout to prevent scrolling issues and layout cut-offs.
+- **Unified Dogfooding Test Suite**: Consolidated all layout, JSONL, and visual regression tests into a single Babashka runner `scripts/dogfood.clj`.
+
 ## 0.5.3
 
 - **CLI Executable Path Quoting**: Wrapped the resolved CLI binary path in double quotes inside terminal execution commands to handle paths containing spaces (such as macOS's `Application Support`) safely, preventing shell word splitting errors.

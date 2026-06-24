@@ -33,7 +33,7 @@ The unofficial extension is built as a **decoupled, feature-rich wrapper** that 
 | **Session History Log** | ❌ | ✅ | **Feature**: Reads active sessions and metadata straight from `~/.commandcode/projects/`. |
 | **Reactive Configuration** | ❌ | ✅ | **Robust**: Instantly updates CLI path validation and status bars on setting changes. |
 | **Test Coverage** | ❌ | ✅ | **Quality**: 38 unit tests configured with Vitest + automated GitHub Actions CI. |
-| **CLI Auto-Bundle** | ✅ | ❌ | **Trade-off**: Requires manual CLI installation (`npm i -g command-code`). |
+| **CLI Auto-Bundle** | ✅ | ✅ | **Unified**: Automatically installs and updates the CLI package locally in globalStorageUri. |
 
 ---
 
@@ -89,7 +89,7 @@ npm i -g command-code
 You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/cmd-lite/releases) page. Install it directly via your terminal:
 
 ```bash
-code --install-extension cmd-lite-0.1.0.vsix
+code --install-extension cmd-lite-0.5.4.vsix
 ```
 
 ---
@@ -100,28 +100,28 @@ If you are contributing to this extension:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Run build compilation
-npm run build
+pnpm run build
 
 # Run lint checks
-npm run lint
+pnpm run lint
 
 # Run unit tests
-npm test
+pnpm test
 
 # Build packaged .vsix extension
-npm run package
+pnpm run package
 ```
 
 ### Key Configurations (`settings.json`)
 
-* `commandcode.cliPath`: Custom path to your `cmd` executable (defaults to `cmd`).
-* `commandcode.defaultModel`: Default model override (e.g. `claude-opus-4.8`).
-* `commandcode.defaultPermissionMode`: Default permission mode (`standard`, `plan`, `auto-accept`).
-* `commandcode.showStatusBar`: Toggle the status bar session indicator.
-* `commandcode.context.maxSelectionLength`: Caps the text selection context shared over IPC.
+* `cmd-lite.cliPath`: Custom path to your `cmd` executable (defaults to `cmd`).
+* `cmd-lite.defaultModel`: Default model override (e.g. `claude-opus-4.8`).
+* `cmd-lite.defaultPermissionMode`: Default permission mode (`standard`, `plan`, `auto-accept`).
+* `cmd-lite.showStatusBar`: Toggle the status bar session indicator.
+* `cmd-lite.context.maxSelectionLength`: Caps the text selection context shared over IPC.
 
 ---
 
