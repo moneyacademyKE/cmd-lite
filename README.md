@@ -115,6 +115,32 @@ pnpm test
 pnpm run package
 ```
 
+### 🚀 Publishing to Marketplaces
+We support dual-registry publishing to the Visual Studio Marketplace and the Open VSX Registry.
+
+#### Option A: Automated CI/CD (Recommended)
+1. Configure your registry tokens in your GitHub Repository Secrets:
+   - `VSCE_PAT`: Personal Access Token with **Marketplace (Publish)** scope.
+   - `OVSX_PAT`: Open VSX registry Access Token.
+2. Push a release tag matching your version:
+   ```bash
+   git tag v0.5.4
+   git push origin v0.5.4
+   ```
+3. GitHub Actions will automatically validate, compile, package, and deploy the single VSIX artifact to both registries.
+
+#### Option B: Local Direct Publish
+You can use the Babashka publisher script locally to validate and deploy:
+```bash
+# 1. Run validation checks in dry-run mode (runs linter, tests, and mock packaging)
+pnpm run publish --dry-run
+
+# 2. Run real publishing (requires VSCE_PAT and/or OVSX_PAT environment variables)
+export VSCE_PAT=your_azure_devops_pat
+export OVSX_PAT=your_open_vsx_token
+pnpm run publish
+```
+
 ### Key Configurations (`settings.json`)
 
 * `cmd-lite.cliPath`: Custom path to your `cmd` executable (defaults to `cmd`).
