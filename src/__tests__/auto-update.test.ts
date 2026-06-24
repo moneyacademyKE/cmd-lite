@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { Readable, Writable } from "node:stream";
+import * as vscode from "vscode";
 
 // Mock vscode
 vi.mock("vscode", () => {
@@ -28,8 +29,8 @@ vi.mock("vscode", () => {
 // Mock https for download and version checks
 vi.mock("node:https", () => {
   return {
-    get: (url: string, callback: any) => {
-      const responseStream = new Readable() as any;
+    get: (url: string, callback: (res: unknown) => void) => {
+      const responseStream = new Readable() as unknown as Readable & { statusCode: number; headers: Record<string, string> };
       responseStream.statusCode = 200;
       responseStream.headers = { "content-length": "100" };
 
@@ -52,9 +53,9 @@ vi.mock("node:https", () => {
       
       const reqStream = new Writable({
         write(_chunk, _encoding, cb) { cb(); }
-      });
+      }) as unknown as Writable & { on: ReturnType<typeof vi.fn> };
       // Add error listener support
-      (reqStream as any).on = vi.fn().mockImplementation((_event, _listener) => {
+      reqStream.on = vi.fn().mockImplementation((_event, _listener) => {
         return reqStream;
       });
       return reqStream;
@@ -65,8 +66,8 @@ vi.mock("node:https", () => {
 // Mock child_process exec to simulate tar extraction and CLI version execution
 vi.mock("node:child_process", () => {
   return {
-    exec: (cmd: string, options: any, callback: any) => {
-      const cb = typeof options === "function" ? options : callback;
+    exec: (cmd: string, options: unknown, callback?: unknown) => {
+      const cb = (typeof options === "function" ? options : callback) as (err: Error | null, stdout: string, stderr: string) => void;
       
       if (cmd.includes("tar")) {
         const destMatch = /-C\s+"([^"]+)"/.exec(cmd);
@@ -99,7 +100,7 @@ import {
 
 describe("Local CLI resolution & auto-update", () => {
   const tempStorageDir = path.join(os.tmpdir(), `vscode-cmd-storage-${Date.now()}`);
-  const mockStorageUri = { fsPath: tempStorageDir } as any;
+  const mockStorageUri = { fsPath: tempStorageDir } as unknown as vscode.Uri;
 
   beforeEach(() => {
     fs.mkdirSync(tempStorageDir, { recursive: true });

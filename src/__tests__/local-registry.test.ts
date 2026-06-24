@@ -30,9 +30,9 @@ let execCommandHistory: string[] = [];
 let mockPackageJsonContent: string | undefined = undefined;
 vi.mock("node:child_process", () => {
   return {
-    exec: (cmd: string, options: any, callback: any) => {
+    exec: (cmd: string, options: unknown, callback?: unknown) => {
       execCommandHistory.push(cmd);
-      const cb = typeof options === "function" ? options : callback;
+      const cb = (typeof options === "function" ? options : callback) as (err: Error | null, stdout: string, stderr: string) => void;
       if (cmd.includes("tar")) {
         const destMatch = /-C\s+"([^"]+)"/.exec(cmd);
         if (destMatch) {
@@ -61,10 +61,12 @@ import {
   getLocalRegistryConfig,
 } from "../cli/resolve";
 
+import * as vscode from "vscode";
+
 describe("Local CLI registry override updates", () => {
   const tempDir = path.join(os.tmpdir(), `vscode-cmd-local-registry-${Date.now()}`);
   const tempStorageDir = path.join(os.tmpdir(), `vscode-cmd-storage-${Date.now()}`);
-  const mockStorageUri = { fsPath: tempStorageDir } as any;
+  const mockStorageUri = { fsPath: tempStorageDir } as unknown as vscode.Uri;
 
   beforeEach(() => {
     fs.mkdirSync(tempDir, { recursive: true });

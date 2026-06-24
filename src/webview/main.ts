@@ -503,6 +503,10 @@ marked.use({
 
 // ─── Smart Scroll ─────────────────────────────────
 
+interface ScrollableElement extends HTMLElement {
+  wasNearBottom?: boolean;
+}
+
 function isNearBottom(el: HTMLElement, threshold = 150): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
 }
@@ -536,14 +540,14 @@ function getActiveScrollContainer(): HTMLElement | null {
 
 function setupScrollButton(container: HTMLElement): void {
   // Store the state locally on the container element to avoid global state entanglement
-  (container as any).wasNearBottom = true;
+  (container as ScrollableElement).wasNearBottom = true;
 
   const btn = document.createElement('button');
   btn.id = container.id + '-scroll-bottom-btn';
   btn.className = 'scroll-bottom-btn';
   btn.textContent = '\u25BC BOTTOM';
   btn.addEventListener('click', () => {
-    (container as any).wasNearBottom = true;
+    (container as ScrollableElement).wasNearBottom = true;
     scrollToBottom(container);
   });
   container.parentElement?.appendChild(btn);
@@ -555,16 +559,16 @@ function setupScrollButton(container: HTMLElement): void {
     const currentScrollTop = container.scrollTop;
 
     if (isNearBottom(container)) {
-      (container as any).wasNearBottom = true;
+      (container as ScrollableElement).wasNearBottom = true;
     } else if (currentScrollTop < lastScrollTop) {
       // User scrolled UP and is NOT near bottom
-      (container as any).wasNearBottom = false;
+      (container as ScrollableElement).wasNearBottom = false;
     } else if (currentScrollTop > lastScrollTop) {
       // User scrolled DOWN and is NOT near bottom
-      (container as any).wasNearBottom = false;
+      (container as ScrollableElement).wasNearBottom = false;
     }
 
-    btn.classList.toggle('visible', !(container as any).wasNearBottom);
+    btn.classList.toggle('visible', !(container as ScrollableElement).wasNearBottom);
 
     lastScrollTop = currentScrollTop;
   });
@@ -572,7 +576,7 @@ function setupScrollButton(container: HTMLElement): void {
   // Watch for any DOM changes inside the container (appended messages, syntax highlights, streaming text)
   if (typeof MutationObserver !== 'undefined') {
     const observer = new MutationObserver(() => {
-      if ((container as any).wasNearBottom) {
+      if ((container as ScrollableElement).wasNearBottom) {
         scrollToBottom(container);
       }
     });
@@ -587,7 +591,7 @@ function setupScrollButton(container: HTMLElement): void {
   container.addEventListener('load', (e) => {
     const target = e.target as HTMLElement;
     if (target && target.tagName === 'IMG') {
-      if ((container as any).wasNearBottom) {
+      if ((container as ScrollableElement).wasNearBottom) {
         scrollToBottom(container);
       }
     }
@@ -931,9 +935,9 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
 
   // Determine if we were at the bottom before mutating the DOM
   if (m.role === 'user') {
-    (history as any).wasNearBottom = true;
+    (history as ScrollableElement).wasNearBottom = true;
   }
-  const shouldScroll = (history as any).wasNearBottom || isNearBottom(history);
+  const shouldScroll = (history as ScrollableElement).wasNearBottom || isNearBottom(history);
 
   let div = document.getElementById(m.id);
   if (!div) {
@@ -974,7 +978,7 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
   }
 
   if (shouldScroll) {
-    (history as any).wasNearBottom = true;
+    (history as ScrollableElement).wasNearBottom = true;
     scrollToBottom(history);
   }
 }

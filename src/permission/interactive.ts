@@ -107,6 +107,8 @@ function launchTerminal(cwd: string, options: StartSessionOptions): void {
     name: "Command Code",
     cwd,
   });
-  terminal.sendText([`"${cliPath}"`, ...args].join(" "));
+  const isJs = cliPath.endsWith(".mjs") || cliPath.endsWith(".js");
+  const execCmd = isJs ? `"${process.execPath}" "${cliPath}"` : `"${cliPath}"`;
+  terminal.sendText([execCmd, ...args].join(" "));
   terminal.show();
 }

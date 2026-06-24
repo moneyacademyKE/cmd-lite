@@ -311,3 +311,16 @@
 ## Unified Model Resolution & Propagation Pattern
 - **Context**: In multi-context editor extensions (involving a sidebar webview, background print tasks, and interactive terminal sessions), model configuration can become fragmented. If the model selector picker only updates the session state but is ignored when launching terminal commands, or if the UI displays a cached configuration rather than the active session model, the system operates with inconsistent models.
 - **Solution**: Establish a hierarchical model resolution priority: `Session State Picker > Process Environment Overrides > Workspace Configurations > CLI Defaults`. Hydrate the webview using the resolved state model, pass the updated `modelsLabel` in the payload of the `modelChanged` event so the header label refreshes immediately in response to picker selections, and forward both the model and permission mode flags directly as options to the interactive terminal launch routine.
+
+---
+
+## Interactive JS/MJS CLI Terminal Invocation Pattern
+- **Context**: Spawning terminal sessions for commands (like `start` or `login`) with a resolved `cliPath` pointing to a local ES Module/JavaScript file (`.mjs`/`.js`) fails to run directly in typical OS command shells since they are not native compiled binaries.
+- **Solution**: Check if the resolved executable path ends with `.js` or `.mjs`. If so, prefix the terminal command execution with `process.execPath` (the editor's active Node runner) to ensure shell-independent execution.
+
+---
+
+## Type Guard Mocking & Element State Specialization Pattern
+- **Context**: Using loose `any` casts to mock complex third-party API types (like `vscode.WorkspaceConfiguration` or `vscode.Uri` in tests) or to store custom properties on HTMLElement nodes (like `wasNearBottom` for scrolling) causes TypeScript compilation warning pollution.
+- **Solution**: Avoid `any` by defining specialized interfaces (e.g. `ScrollableElement extends HTMLElement`) for elements with custom state properties, and casting mocks to their target types using intermediate `unknown` assertions (`mock as unknown as TargetType`).
+

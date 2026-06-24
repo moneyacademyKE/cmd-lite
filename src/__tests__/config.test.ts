@@ -28,7 +28,7 @@ describe("config getEffectiveModel tests", () => {
         if (key === "defaultModel") return "claude-opus-4.8";
         return defaultValue;
       }),
-    } as any);
+    } as unknown as vscode.WorkspaceConfiguration);
 
     process.env.ANTIGRAVITY_MODEL = "gemini-2.5-flash";
 
@@ -42,7 +42,7 @@ describe("config getEffectiveModel tests", () => {
         if (key === "defaultModel") return "";
         return defaultValue;
       }),
-    } as any);
+    } as unknown as vscode.WorkspaceConfiguration);
 
     process.env.ANTIGRAVITY_MODEL = "gemini-2.5-flash";
 
@@ -55,7 +55,7 @@ describe("config getEffectiveModel tests", () => {
         if (key === "defaultModel") return "   ";
         return defaultValue;
       }),
-    } as any);
+    } as unknown as vscode.WorkspaceConfiguration);
 
     delete process.env.ANTIGRAVITY_MODEL;
     process.env.MODEL = "deepseek-chat";
@@ -69,7 +69,7 @@ describe("config getEffectiveModel tests", () => {
         if (key === "defaultModel") return "";
         return defaultValue;
       }),
-    } as any);
+    } as unknown as vscode.WorkspaceConfiguration);
 
     delete process.env.ANTIGRAVITY_MODEL;
     delete process.env.MODEL;

@@ -202,7 +202,9 @@ export function registerSessionCommands(
         name: "Command Code",
         cwd,
       });
-      terminal.sendText(`"${cliPath}" login`);
+      const isJs = cliPath.endsWith(".mjs") || cliPath.endsWith(".js");
+      const cmdText = isJs ? `"${process.execPath}" "${cliPath}" login` : `"${cliPath}" login`;
+      terminal.sendText(cmdText);
       terminal.show();
       sessionTree.refresh();
     }),

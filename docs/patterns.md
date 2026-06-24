@@ -225,5 +225,17 @@ Keep the Webview completely stateless by using a CSS-driven panel system.
   3. Re-install the VSIX locally using the IDE's CLI tool (e.g. `"/Applications/Antigravity IDE.app/Contents/Resources/app/bin/antigravity-ide" --install-extension <vsix-file>`).
   4. Reload the window using AppleScript to trigger `Developer: Reload Window`, forcing the IDE to reload the extension host and activate the new code.
 
+---
+
+### Interactive JS/MJS CLI Terminal Invocation Pattern
+- **Problem**: Spawning terminal sessions for commands (like `start` or `login`) with a resolved `cliPath` pointing to a local ES Module/JavaScript file (`.mjs`/`.js`) fails to run directly in typical OS command shells since they are not native compiled binaries.
+- **Solution**: Check if the resolved executable path ends with `.js` or `.mjs`. If so, prefix the terminal command execution with `process.execPath` (the editor's active Node runner) to ensure shell-independent execution.
+
+---
+
+### Type Guard Mocking & Element State Specialization Pattern
+- **Problem**: Using loose `any` casts to mock complex third-party API types (like `vscode.WorkspaceConfiguration` or `vscode.Uri` in tests) or to store custom properties on HTMLElement nodes (like `wasNearBottom` for scrolling) causes TypeScript compilation warning pollution.
+- **Solution**: Avoid `any` by defining specialized interfaces (e.g. `ScrollableElement extends HTMLElement`) for elements with custom state properties, and casting mocks to their target types using intermediate `unknown` assertions (`mock as unknown as TargetType`).
+
 
 
