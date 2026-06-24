@@ -47,7 +47,7 @@ To install and run this extension:
   ```bash
   yarn global add command-code@latest
   ```
-- Refer to [gap-analysis.md](file:///Users/moe/Desktop/cmd/docs/gap-analysis.md) for a comprehensive feature breakdown of `v0.39.0`.
+- Refer to [adr-log.md](file:///Users/moe/Desktop/cmd/docs/adr-log.md) for a chronological record of architectural decisions.
 
 ## Extension Architecture & IPC Learnings (v0.1.0)
 - **Token Handshake Security**: The extension secures UDS connections by establishing a UUID token handshake. The token is stored in the local session file, restricting access to processes that have access to the session directory (permissions set to `0o700`).
@@ -226,6 +226,12 @@ To install and run this extension:
 - **CI/CD Package Manager Alignment**: To conform to the "Never use npm" rule and prevent preinstall-hook failures in the CI pipeline, we refactored `.github/workflows/ci.yml` from `npm ci` to `pnpm install --frozen-lockfile`. We integrated `pnpm/action-setup` to download and cache dependencies.
 - **Pre-flight Publishing Validation**: Rather than allowing direct local publishing without tests, we implemented a pre-flight validation runner script `scripts/publish.clj` using Babashka. It programmatically asserts git status, checks TypeScript compatibility (`pnpm run typecheck`), checks linter compliance (`pnpm run lint`), executes testing (`pnpm test`), and packages the extension.
 - **Continuous Deployment Automation**: We set up `.github/workflows/release.yml` triggered on tags matching `v*`. The workflow automates publishing via `@vscode/vsce` CLI, fetching the Personal Access Token safely from `secrets.VSCE_PAT` configured in GitHub Secrets.
+
+## Docs Consolidation & ADR-First Documentation (v0.6.4+)
+- **Flat Gap Analysis Sprawl**: Accumulating per-feature gap analysis files (`gap-analysis-v0.3.0.md`, `scrolling-and-reset-gap-analysis.md`, etc.) over time creates a confusing docs folder where each file has overlapping context, stale ADRs, and historical decisions buried in marketing prose. The folder becomes hard to navigate and harder to maintain.
+- **ADR Log as Single Source of Truth**: Rather than deleting history, we distill all gap analysis decisions into a single chronological `docs/adr-log.md` in the Architecture Decision Record (ADR) format. Each ADR entry captures: Context (why the decision was needed), Decision (what was chosen), and optionally Enforcement (how it is maintained). This preserves institutional knowledge without the sprawl.
+- **Docs Folder Target Shape**: The `docs/` folder should only contain high-signal, living documents: the ADR log, the project playbook, functional roadmaps (MCP, production-grade), and visual/design playbooks. One-off analysis files should always be distilled into either an ADR entry or a `learnings.md` entry before deletion.
+- **Learnings vs. ADR Separation**: `learnings.md` (root) captures implementation-level gotchas, API behaviors, and tooling discoveries scoped to a developer workflow. `docs/adr-log.md` captures architectural decisions that affect the system's structure and design boundaries. Both are complementary: learnings are investigative notes, ADRs are binding design choices.
 
 ## Open VSX & Dual-Registry Publishing (v0.6.4)
 - **VSIX Artifact Reusability**: Rather than running packaging scripts multiple times (which wastes computing overhead and risks environmental variance), we compile and package the extension *once* to a single versioned `.vsix` file. We then pass that exact file path to both `vsce publish -i <file>` and `ovsx publish -i <file>` to guarantee 100% parity across registries.
