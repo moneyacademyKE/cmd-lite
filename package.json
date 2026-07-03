@@ -3,7 +3,7 @@
   "name": "cmd-lite",
   "displayName": "CMD Lite",
   "description": "A coding agent with taste. Wrap the Command Code (`cmd`) CLI as a native VS Code experience.",
-  "version": "0.5.4",
+  "version": "0.5.6",
   "publisher": "moneyacademyke",
   "license": "MIT",
   "repository": {
@@ -30,7 +30,23 @@
     "deepseek"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onView:cmd-lite.chatView",
+    "onView:cmd-lite.tasteView",
+    "onView:cmd-lite.sessionView",
+    "onCommand:cmd-lite.start",
+    "onCommand:cmd-lite.continue",
+    "onCommand:cmd-lite.resume",
+    "onCommand:cmd-lite.print",
+    "onCommand:cmd-lite.plan",
+    "onCommand:cmd-lite.review",
+    "onCommand:cmd-lite.loop",
+    "onCommand:cmd-lite.loop.stop",
+    "onCommand:cmd-lite.loop.openReport",
+    "onCommand:cmd-lite.loop.listReports",
+    "onCommand:cmd-lite.status",
+    "onCommand:cmd-lite.login",
+    "onCommand:cmd-lite.update",
+    "onCommand:cmd-lite.focusChatInput"
   ],
   "main": "./dist/extension.js",
   "icon": "assets/icon.png",
@@ -216,6 +232,26 @@
         "category": "Command Code"
       },
       {
+        "command": "cmd-lite.loop",
+        "title": "Run Bounded Agent Loop",
+        "category": "Command Code"
+      },
+      {
+        "command": "cmd-lite.loop.stop",
+        "title": "Stop Active Loop",
+        "category": "Command Code"
+      },
+      {
+        "command": "cmd-lite.loop.openReport",
+        "title": "Open Last Loop Report",
+        "category": "Command Code"
+      },
+      {
+        "command": "cmd-lite.loop.listReports",
+        "title": "Browse Loop Reports",
+        "category": "Command Code"
+      },
+      {
         "command": "cmd-lite.session.exportMarkdown",
         "title": "Export Session as Markdown",
         "category": "Command Code",
@@ -287,6 +323,11 @@
           "type": "number",
           "default": 10000,
           "description": "Maximum characters of selected text to share with the CLI via the context server. Larger values mean more context for the AI but may slow down IPC."
+        },
+        "cmd-lite.allowShellTool": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow CMD Lite and its MCP terminal tool to execute arbitrary shell commands in the workspace. Keep disabled unless you explicitly trust the active agent/session."
         }
       }
     },

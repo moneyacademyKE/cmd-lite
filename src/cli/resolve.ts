@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 import * as path from "node:path";
 import * as https from "node:https";
@@ -12,15 +12,26 @@ export function setLocalCliPathOverride(filePath: string | undefined): void {
 }
 
 export function getLocalCliPath(globalStorageUri: vscode.Uri): string {
-  return path.join(globalStorageUri.fsPath, "cli", "dist", "index.mjs");
+  const executableName = process.platform === "win32" ? "command-code.exe" : "command-code";
+  return path.join(globalStorageUri.fsPath, "cli", executableName);
 }
 
 export function detectLocalCli(globalStorageUri: vscode.Uri): string | undefined {
-  const localPath = getLocalCliPath(globalStorageUri);
-  if (fs.existsSync(localPath)) {
-    return localPath;
-  }
-  return undefined;
+  return findNativeCliPath(path.join(globalStorageUri.fsPath, "cli"));
+}
+
+function findNativeCliPath(installDir: string): string | undefined {
+  if (!fs.existsSync(installDir)) return undefined;
+
+  const executableName = process.platform === "win32" ? "command-code.exe" : "command-code";
+  const candidates = [
+    path.join(installDir, executableName),
+    path.join(installDir, process.platform === "win32" ? "cmd.exe" : "cmd"),
+    path.join(installDir, "dist", executableName),
+    path.join(installDir, "dist", process.platform === "win32" ? "cmd.exe" : "cmd"),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
 export function resolveCliPath(): string {
@@ -67,12 +78,22 @@ export function validateCliPath(cliPath: string): { valid: boolean; message?: st
 export async function checkCliVersion(cliPath: string): Promise<{ compatible: boolean; version?: string; message?: string }> {
   return new Promise((resolve) => {
     const isJs = cliPath.endsWith(".mjs") || cliPath.endsWith(".js");
-    const cmd = isJs ? `"${process.execPath}" "${cliPath}" --version` : `"${cliPath}" --version`;
-    exec(cmd, {
-      timeout: 5000,
-      windowsHide: true,
-    }, (error, stdout, stderr) => {
-      if (error) {
+    const execPath = isJs ? process.execPath : cliPath;
+    const args = isJs ? [cliPath, "--version"] : ["--version"];
+    const child = spawn(execPath, args, { windowsHide: true, shell: false });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => child.kill("SIGTERM"), 5000);
+
+    child.stdout?.on("data", (chunk) => { stdout += chunk.toString(); });
+    child.stderr?.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve({ compatible: true });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
         resolve({ compatible: true }); // couldn't run --version, assume OK
         return;
       }
@@ -225,29 +246,14 @@ export function downloadFile(url: string, destPath: string, progressCallback?: (
 export function extractTarball(tarballPath: string, targetDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     fs.mkdirSync(targetDir, { recursive: true });
-    
-    // Spawn standard tar tool: tar -xzf <tarball> --strip-components=1 -C <targetDir>
-    exec(`tar -xzf "${tarballPath}" --strip-components=1 -C "${targetDir}"`, (error, _stdout, stderr) => {
-      if (error) {
-        reject(new Error(`Failed to extract tarball: ${stderr || error.message}`));
-        return;
-      }
-      resolve();
-    });
-  });
-}
 
-export function installDependencies(targetDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    exec("pnpm install --prod --ignore-scripts", {
-      cwd: targetDir,
-      timeout: 180000,
-    }, (error, _stdout, stderr) => {
-      if (error) {
-        reject(new Error(`pnpm install --prod failed: ${stderr || error.message}`));
-        return;
-      }
-      resolve();
+    const child = spawn("tar", ["-xzf", tarballPath, "--strip-components=1", "-C", targetDir], { shell: false });
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", (error) => reject(new Error(`Failed to extract tarball: ${error.message}`)));
+    child.on("close", (code) => {
+      if (code !== 0) reject(new Error(`Failed to extract tarball: ${stderr || `exit code ${code}`}`));
+      else resolve();
     });
   });
 }
@@ -276,23 +282,17 @@ export async function installOrUpdateLocalCli(
 
     await extractTarball(tempTarball, newCliDir);
 
-    // Only install production dependencies if package.json has dependencies
-    let hasDependencies = false;
-    try {
-      const pkgJsonPath = path.join(newCliDir, "package.json");
-      if (fs.existsSync(pkgJsonPath)) {
-        const content = fs.readFileSync(pkgJsonPath, "utf8");
-        const pkg = JSON.parse(content);
-        if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
-          hasDependencies = true;
-        }
-      }
-    } catch {
-      hasDependencies = true; // fallback to running install on parse errors
+    const newCliPath = findNativeCliPath(newCliDir);
+    if (!newCliPath) {
+      throw new Error("Downloaded Command Code package did not contain a precompiled CLI binary.");
     }
 
-    if (hasDependencies) {
-      await installDependencies(newCliDir);
+    if (process.platform !== "win32") {
+      try {
+        fs.chmodSync(newCliPath, 0o755);
+      } catch {
+        // Validation will report permission problems if chmod is not allowed.
+      }
     }
 
     if (fs.existsSync(oldCliDir)) {
@@ -322,8 +322,11 @@ export async function installOrUpdateLocalCli(
     }
   }
 
-  const localIndexMjs = path.join(activeCliDir, "dist", "index.mjs");
-  setLocalCliPathOverride(localIndexMjs);
+  const localCliPath = findNativeCliPath(activeCliDir);
+  if (!localCliPath) {
+    throw new Error("Installed Command Code package does not contain a CLI binary.");
+  }
+  setLocalCliPathOverride(localCliPath);
 
   return { version: latestInfo.version };
 }

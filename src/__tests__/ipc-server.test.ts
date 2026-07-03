@@ -168,5 +168,37 @@ describe("IPCServer Integration", () => {
       client.on("error", reject);
     });
   });
-});
 
+  it("should handle PING request", () => {
+    return new Promise<void>((resolve, reject) => {
+      const client = net.createConnection(socketPath);
+      client.on("connect", () => {
+        client.write(JSON.stringify({ type: "auth", token: "test-token" }) + "\n");
+        client.write(JSON.stringify({ type: "request", id: "req-ping", payload: { action: IPC_ACTIONS.PING } }) + "\n");
+      });
+
+      let buffer = "";
+      client.on("data", (data) => {
+        buffer += data.toString();
+        const lines = buffer.split("\n");
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const response = JSON.parse(line);
+            if (response.id === "req-ping") {
+              expect(response.type).toBe("response");
+              expect(response.payload.success).toBe(true);
+              expect(response.payload.pong).toBe(true);
+              client.end();
+              resolve();
+              return;
+            }
+          } catch {
+            // ignore partial lines
+          }
+        }
+      });
+      client.on("error", reject);
+    });
+  });
+});

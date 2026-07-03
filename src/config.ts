@@ -31,6 +31,12 @@ export function showStatusBarEnabled(): boolean {
     .get<boolean>("showStatusBar", true);
 }
 
+export function shellToolEnabled(): boolean {
+  return vscode.workspace
+    .getConfiguration("cmd-lite")
+    .get<boolean>("allowShellTool", false);
+}
+
 export function getActiveCwd(): string {
   const activeEditor = vscode.window.activeTextEditor;
   if (activeEditor) {

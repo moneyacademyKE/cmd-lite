@@ -3,6 +3,8 @@ import { terminalTool } from "../mcp/tools/terminal";
 import * as cp from "node:child_process";
 import { EventEmitter } from "node:events";
 
+let allowShellTool = false;
+
 vi.mock("node:child_process", () => {
   const spawn = vi.fn((cmd) => {
     const emitter = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter };
@@ -40,15 +42,30 @@ vi.mock("vscode", () => ({
   },
   workspace: {
     workspaceFolders: [{ uri: { fsPath: "/tmp/mock-workspace" } }],
+    getConfiguration: () => ({
+      get: (key: string, defaultValue: unknown) => {
+        if (key === "allowShellTool") return allowShellTool;
+        return defaultValue;
+      },
+    }),
   },
 }));
 
 describe("terminalTool", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    allowShellTool = false;
+  });
+
+  it("should reject shell execution by default", async () => {
+    const result = await terminalTool.execute({ command: "echo test" }) as { content: { type: string, text: string }[] };
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+    expect(result.content[0].text).toContain("Shell execution is disabled");
   });
 
   it("should execute a command and return stdout", async () => {
+    allowShellTool = true;
     const result = await terminalTool.execute({ command: "echo test" }) as { content: { type: string, text: string }[] };
 
     expect(cp.spawn).toHaveBeenCalledWith(
@@ -63,6 +80,7 @@ describe("terminalTool", () => {
   });
 
   it("should handle command errors and return stderr", async () => {
+    allowShellTool = true;
     const result = await terminalTool.execute({ command: "fail-cmd" }) as { content: { type: string, text: string }[] };
 
     expect(result.content[0].text).toContain("STDERR:\nerror output");

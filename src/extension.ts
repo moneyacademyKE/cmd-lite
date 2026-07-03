@@ -1,5 +1,7 @@
 import * as crypto from "node:crypto";
 import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { registerChatParticipant, setParticipantPermissionMode } from "./chat/participant";
 import {
@@ -8,6 +10,7 @@ import {
   getEffectiveModel,
   getEffectiveMaxTurns,
   getEffectivePermissionMode,
+  shellToolEnabled,
 } from "./config";
 import {
   resolveCliPath,
@@ -46,6 +49,7 @@ import { registerLmTools } from "./tools/lm-tools";
 import { showInlineDiff, extractFirstDiffFile, proposedDiffProvider, acceptDiffProposals, rejectDiffProposals, getCurrentDiffManager } from "./diff/preview";
 import { runPrint, getStatus } from "./cli/commands";
 import { runParallel, formatParallelResults, type AgentTask } from "./agents/orchestrator";
+import { listLoopReports, runLoop, writeLoopReport } from "./agents/loop";
 import { initializePermissionStore } from "./permission/store";
 import { restoreLastCheckpoint } from "./git/checkpoint";
 import { CmdMcpServer } from "./mcp/server";
@@ -58,6 +62,76 @@ import { Logger } from "./logger";
 import { SessionManager } from "./sessionManager";
 
 const session = SessionManager.getInstance();
+let activeLoopAbortController: AbortController | null = null;
+let lastLoopReportPath: string | null = null;
+let contextProviderInstance: ContextProvider | null = null;
+let integrationStartupPromise: Promise<void> | null = null;
+
+async function pushCurrentContext(chatProvider: ChatViewProvider): Promise<void> {
+  if (!contextProviderInstance) return;
+  try {
+    const ctx = await contextProviderInstance.getContext();
+    chatProvider.dispatchContext(ctx);
+  } catch (err) {
+    Logger.warn("Context push failed:", err);
+  }
+}
+
+async function ensureIntegrationServices(chatProvider: ChatViewProvider): Promise<void> {
+  if (session.ipcServer && session.mcpServer && contextProviderInstance) return;
+  if (integrationStartupPromise) return integrationStartupPromise;
+
+  integrationStartupPromise = (async () => {
+    const sessionId = session.currentSessionId ?? crypto.randomUUID();
+    session.currentSessionId = sessionId;
+    setCurrentSessionId(sessionId);
+
+    const ideName = session.currentIdeName ?? detectIdeName();
+    session.currentIdeName = ideName;
+    const socketPath = getSocketPath(sessionId, ideName);
+    const mcpSocketPath = getSocketPath(sessionId + "-mcp", ideName);
+    const authToken = crypto.randomUUID();
+
+    cleanupSocket(socketPath);
+    cleanupSocket(mcpSocketPath);
+    cleanupStaleSockets(ideName);
+
+    const contextProvider = contextProviderInstance ?? new ContextProvider();
+    contextProviderInstance = contextProvider;
+
+    const ipcServer = new IPCServer(contextProvider, socketPath, authToken);
+    ipcServer.setWebviewDispatcher((eventPayload) => {
+      chatProvider.dispatchEvent(eventPayload);
+    });
+
+    const mcpServer = new CmdMcpServer(mcpSocketPath, [
+      terminalTool,
+      diffProposeTool,
+      diagnosticsTool,
+      fileSearchTool,
+    ]);
+
+    session.ipcServer = ipcServer;
+    session.mcpServer = mcpServer;
+
+    await mcpServer.start();
+    await ipcServer.start();
+
+    const workspaceFolders = vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
+    writeSessionFile(sessionId, socketPath, mcpSocketPath, workspaceFolders, ideName, authToken);
+
+    await pushCurrentContext(chatProvider);
+  })().catch((error) => {
+    session.ipcServer = null;
+    session.mcpServer = null;
+    integrationStartupPromise = null;
+    Logger.error("CommandCode: integration startup failed:", error);
+    vscode.window.showErrorMessage("CommandCode: Failed to start context services. CLI integration may not work.");
+    throw error;
+  });
+
+  return integrationStartupPromise;
+}
 
 async function handleWebviewAction(
   msg: { type: "action"; action: string; payload?: Record<string, unknown> },
@@ -71,7 +145,7 @@ async function handleWebviewAction(
       break;
     case "clear-session":
       session.activeAbortController?.abort();
-      session.reset();
+      session.clearInteractiveState();
       for (const t of vscode.window.terminals) {
         if (t.name === "Command Code") {
           t.dispose();
@@ -89,6 +163,7 @@ async function handleWebviewAction(
       break;
     }
     case "list-sessions": {
+      await ensureIntegrationServices(chatProvider);
       const sessions = listSessions(cwd);
       chatProvider.dispatchEvent({
         jsonrpc: "2.0",
@@ -172,6 +247,7 @@ async function handleWebviewAction(
       break;
     }
     case "show-status": {
+      await ensureIntegrationServices(chatProvider);
       try {
         const text = await getStatus(cwd);
         chatProvider.dispatchEvent({
@@ -192,6 +268,30 @@ async function handleWebviewAction(
           },
         });
       }
+      break;
+    }
+    case "open-context-file": {
+      await ensureIntegrationServices(chatProvider);
+      const relativePath = msg.payload?.path as string | undefined;
+      if (!relativePath) break;
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const targetPath = workspaceRoot ? path.join(workspaceRoot, relativePath) : relativePath;
+      const success = await contextProviderInstance?.openFile(targetPath);
+      if (!success) {
+        vscode.window.showWarningMessage(`Could not open context file: ${relativePath}`);
+      }
+      break;
+    }
+    case "run-loop": {
+      vscode.commands.executeCommand("cmd-lite.loop");
+      break;
+    }
+    case "stop-loop": {
+      vscode.commands.executeCommand("cmd-lite.loop.stop");
+      break;
+    }
+    case "open-loop-report": {
+      vscode.commands.executeCommand("cmd-lite.loop.openReport");
       break;
     }
   }
@@ -245,19 +345,24 @@ async function bootstrapLocalCli(context: vscode.ExtensionContext): Promise<void
   );
 }
 
-async function validateAndCheckCli(cliPath: string, context: vscode.ExtensionContext): Promise<void> {
+async function validateAndCheckCli(context: vscode.ExtensionContext): Promise<void> {
   const configured = vscode.workspace.getConfiguration("cmd-lite").get<string>("cliPath", "cmd").trim();
   const isDefault = configured === "cmd" || configured === "command-code";
 
   if (isDefault) {
     const localPath = detectLocalCli(context.globalStorageUri);
-    if (!localPath) {
+    if (localPath) {
+      setLocalCliPathOverride(localPath);
+    } else if (validateCliPath(configured).valid) {
+      clearCliPathCache();
+    } else {
       await bootstrapLocalCli(context);
       return;
     }
   }
 
-  const validation = validateCliPath(cliPath);
+  const resolvedCliPath = resolveCliPath();
+  const validation = validateCliPath(resolvedCliPath);
   if (!validation.valid) {
     vscode.window.showErrorMessage(
       `Command Code: ${validation.message}`,
@@ -272,7 +377,7 @@ async function validateAndCheckCli(cliPath: string, context: vscode.ExtensionCon
       }
     });
   } else {
-    const version = await checkCliVersion(cliPath);
+    const version = await checkCliVersion(resolvedCliPath);
     if (!version.compatible && version.message) {
       vscode.window.showWarningMessage(
         `Command Code: ${version.message}`,
@@ -301,7 +406,7 @@ export function activate(context: vscode.ExtensionContext): void {
     3000,
   );
 
-  validateAndCheckCli(cliPath, context);
+  validateAndCheckCli(context);
 
   Logger.initialize("Command Code");
 
@@ -425,6 +530,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Handle direct Bash execution mode
         if (input.payload?.isBash) {
+          if (!shellToolEnabled()) {
+            const msgId = `bash-disabled-${Date.now()}`;
+            chatProvider.dispatchEvent({
+              jsonrpc: "2.0",
+              method: "webview/dispatchEvent",
+              params: {
+                type: "RenderMessage",
+                payload: {
+                  id: msgId,
+                  role: "system",
+                  content: "Shell execution is disabled. Enable `cmd-lite.allowShellTool` only for trusted workspaces/sessions.",
+                },
+              },
+            });
+            return;
+          }
           Logger.info(`[webview] bash command received: ${prompt}`);
           const msgId = `bash-${Date.now()}`;
           chatProvider.dispatchEvent({
@@ -620,7 +741,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTasteWatcher(context, tasteProvider);
   registerTasteCommands(context, tasteProvider, Logger.instance);
   initializePermissionStore(context);
-  registerSessionCommands(context, statusBar, sessionProvider, Logger.instance, chatProvider);
+  registerSessionCommands(context, statusBar, sessionProvider, Logger.instance, chatProvider, () => ensureIntegrationServices(chatProvider));
   registerChatParticipant(context);
   registerLmTools(context);
 
@@ -734,6 +855,135 @@ export function activate(context: vscode.ExtensionContext): void {
         statusBar.setBusy(false);
       }
     }),
+    vscode.commands.registerCommand("cmd-lite.loop", async () => {
+      const task = await vscode.window.showInputBox({
+        prompt: "What should Command Code improve in a bounded loop?",
+        placeHolder: "Fix failing tests, improve docs, or complete a feature",
+      });
+      if (!task?.trim()) return;
+
+      const verify = await vscode.window.showInputBox({
+        prompt: "How should each loop verify progress?",
+        placeHolder: "pnpm test, pnpm run build, or describe the acceptance check",
+      });
+
+      const maxRaw = await vscode.window.showInputBox({
+        prompt: "Maximum loop iterations",
+        value: "5",
+        validateInput: (value) => /^\d+$/.test(value) && Number(value) > 0 ? null : "Enter a positive whole number.",
+      });
+      if (!maxRaw) return;
+
+      statusBar.setBusy(true);
+      const abortController = new AbortController();
+      activeLoopAbortController = abortController;
+      try {
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "LoopStarted", payload: { task, verify } },
+        });
+        const result = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: "Running Command Code loop...",
+            cancellable: true,
+          },
+          async (progress, token) => {
+            token.onCancellationRequested(() => abortController.abort());
+            return runLoop({
+              task,
+              verify,
+              cwd: getActiveCwd(),
+              maxIterations: Number(maxRaw),
+              signal: abortController.signal,
+              onProgress: (message) => {
+                progress.report({ message });
+                const match = /Loop iteration (\d+)\/(\d+) (started|failed)/i.exec(message);
+                if (match) {
+                  chatProvider.dispatchEvent({
+                    jsonrpc: "2.0",
+                    method: "webview/dispatchEvent",
+                    params: {
+                      type: "LoopIteration",
+                      payload: {
+                        iteration: Number(match[1]),
+                        status: match[3].toLowerCase(),
+                        summary: message,
+                      },
+                    },
+                  });
+                }
+              },
+            });
+          },
+        );
+
+        lastLoopReportPath = writeLoopReport(result, task, verify);
+
+        for (const iteration of result.iterations) {
+          const cleanSummary = (iteration.result.stdout || iteration.result.stderr || "").replace(/\s+/g, " ").trim().slice(0, 500);
+          chatProvider.dispatchEvent({
+            jsonrpc: "2.0",
+            method: "webview/dispatchEvent",
+            params: {
+              type: "LoopIteration",
+              payload: {
+                iteration: iteration.iteration,
+                status: iteration.result.exitCode === 0 ? "ok" : "failed",
+                summary: cleanSummary || `exit ${iteration.result.exitCode}`,
+              },
+            },
+          });
+        }
+
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "LoopFinished", payload: { status: result.status, reportPath: lastLoopReportPath } },
+        });
+
+        Logger.clear();
+        Logger.info(`# Command Code Loop: ${result.status}`);
+        for (const iteration of result.iterations) {
+          Logger.info(`\n## Iteration ${iteration.iteration}`);
+          if (iteration.result.stdout.trim()) Logger.info(iteration.result.stdout.trim());
+          if (iteration.result.stderr.trim()) Logger.warn(iteration.result.stderr.trim());
+        }
+        Logger.show(true);
+        vscode.window.showInformationMessage(`Command Code loop ${result.status} after ${result.iterations.length} iteration(s).`);
+      } finally {
+        activeLoopAbortController = null;
+        statusBar.setBusy(false);
+      }
+    }),
+    vscode.commands.registerCommand("cmd-lite.loop.stop", () => {
+      activeLoopAbortController?.abort();
+      vscode.window.showInformationMessage("Command Code loop stop requested.");
+    }),
+    vscode.commands.registerCommand("cmd-lite.loop.openReport", async () => {
+      if (!lastLoopReportPath || !fs.existsSync(lastLoopReportPath)) {
+        vscode.window.showInformationMessage("No Command Code loop report found.");
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(lastLoopReportPath);
+      await vscode.window.showTextDocument(doc, { preview: false });
+    }),
+    vscode.commands.registerCommand("cmd-lite.loop.listReports", async () => {
+      const reports = listLoopReports();
+      if (reports.length === 0) {
+        vscode.window.showInformationMessage("No Command Code loop reports found.");
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        reports.map((report) => ({ label: report.label, description: report.path, report })),
+        { title: "Open Command Code Loop Report" },
+      );
+      if (!picked) return;
+      lastLoopReportPath = picked.report.path;
+      const doc = await vscode.workspace.openTextDocument(picked.report.path);
+      await vscode.window.showTextDocument(doc, { preview: false });
+    }),
     vscode.commands.registerCommand("cmd-lite.generateMcpConfig", async () => {
       await generateMcpConfig();
     }),
@@ -764,8 +1014,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("cmd-lite.cliPath")) {
         clearCliPathCache();
-        const newCliPath = resolveCliPath();
-        validateAndCheckCli(newCliPath, context);
+        validateAndCheckCli(context);
       }
       if (e.affectsConfiguration("cmd-lite.showStatusBar")) {
         if (showStatusBarEnabled()) statusBar.show();
@@ -798,89 +1047,17 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // --- IPC context server ---
-  const sessionId = crypto.randomUUID();
-  session.currentSessionId = sessionId;
-  setCurrentSessionId(sessionId);
-  const ideName = detectIdeName();
-  session.currentIdeName = ideName;
-  const socketPath = getSocketPath(sessionId, ideName);
-  const mcpSocketPath = getSocketPath(sessionId + "-mcp", ideName);
-  const authToken = crypto.randomUUID();
-
-  cleanupSocket(socketPath);
-  cleanupSocket(mcpSocketPath);
-  cleanupStaleSockets(ideName);
-
-  const contextProvider = new ContextProvider();
-  session.ipcServer = new IPCServer(contextProvider, socketPath, authToken);
-
-  session.ipcServer.setWebviewDispatcher((eventPayload) => {
-    chatProvider.dispatchEvent(eventPayload);
-  });
-
-  // ── Context push to webview ──────────────────────────────────
-  const pushContext = async () => {
-    try {
-      const ctx = await contextProvider.getContext();
-      chatProvider.dispatchContext(ctx);
-    } catch (err) {
-      Logger.warn("Context push failed:", err);
-    }
-  };
-
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor(pushContext),
-    vscode.workspace.onDidSaveTextDocument(pushContext),
+    vscode.window.onDidChangeActiveTextEditor(() => pushCurrentContext(chatProvider)),
+    vscode.workspace.onDidSaveTextDocument(() => pushCurrentContext(chatProvider)),
     vscode.workspace.onDidChangeTextDocument(
       (e) => {
         if (e.document === vscode.window.activeTextEditor?.document) {
-          pushContext();
+          void pushCurrentContext(chatProvider);
         }
       },
     ),
   );
-
-  // Push initial context once webview is resolved (deferred)
-  setTimeout(pushContext, 1000);
-
-  session.mcpServer = new CmdMcpServer(mcpSocketPath, [
-    terminalTool,
-    diffProposeTool,
-    diagnosticsTool,
-    fileSearchTool,
-  ]);
-  session.mcpServer.start();
-
-  session.ipcServer.start()
-    .then(() => {
-      const workspaceFolders =
-        vscode.workspace.workspaceFolders?.map(
-          (f) => f.uri.fsPath,
-        ) ?? [];
-
-      try {
-        writeSessionFile(
-          sessionId,
-          socketPath,
-          mcpSocketPath,
-          workspaceFolders,
-          ideName,
-          authToken,
-        );
-      } catch (error) {
-        Logger.error("CommandCode: failed to write session file:", error);
-      }
-    })
-    .catch((error) => {
-      Logger.error("CommandCode: IPC server failed to start:", error);
-      vscode.window.showErrorMessage(
-        "CommandCode: Failed to start context server. CLI integration may not work.",
-      );
-    });
-
-  context.subscriptions.push(contextProvider);
-  context.subscriptions.push(session.ipcServer);
 }
 
 export function deactivate(): void {
@@ -889,4 +1066,7 @@ export function deactivate(): void {
   }
   session.ipcServer?.dispose();
   session.mcpServer?.stop();
+  contextProviderInstance?.dispose();
+  contextProviderInstance = null;
+  integrationStartupPromise = null;
 }

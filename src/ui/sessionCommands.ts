@@ -25,14 +25,16 @@ export function registerSessionCommands(
   sessionTree: SessionTreeProvider,
   outputChannel: vscode.OutputChannel,
   chatProvider: ChatViewProvider,
+  ensureServices?: () => Promise<void>,
 ): void {
   const extUri = context.extensionUri;
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("cmd-lite.start", () => {
+    vscode.commands.registerCommand("cmd-lite.start", async () => {
+      await ensureServices?.();
       const cwd = getActiveCwd();
       session.activeAbortController?.abort();
-      session.reset();
+      session.clearInteractiveState();
       chatProvider.dispatchEvent({
         jsonrpc: "2.0",
         method: "webview/dispatchEvent",
@@ -50,7 +52,8 @@ export function registerSessionCommands(
       });
     }),
 
-    vscode.commands.registerCommand("cmd-lite.continue", () => {
+    vscode.commands.registerCommand("cmd-lite.continue", async () => {
+      await ensureServices?.();
       const cwd = getActiveCwd();
       const state = readSessionState();
       startInteractiveSession(extUri, {
@@ -63,6 +66,7 @@ export function registerSessionCommands(
     }),
 
     vscode.commands.registerCommand("cmd-lite.resume", async (sessionId?: string) => {
+      await ensureServices?.();
       const cwd = getActiveCwd();
       const id =
         sessionId ??
@@ -190,7 +194,8 @@ export function registerSessionCommands(
       vscode.window.showInformationMessage(text.split(/\r?\n/).slice(0, 6).join(" | "));
     }),
 
-    vscode.commands.registerCommand("cmd-lite.login", () => {
+    vscode.commands.registerCommand("cmd-lite.login", async () => {
+      await ensureServices?.();
       const cwd = getActiveCwd();
       const cliPath = resolveCliPath();
       for (const t of vscode.window.terminals) {

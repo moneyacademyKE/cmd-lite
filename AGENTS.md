@@ -1,7 +1,7 @@
 # Memory
 
 ## Project Overview
-See @README.md for project overview and @package.json for available npm/pnpm commands for this project.
+See @README.md for project overview and @package.json for available pnpm commands for this project.
 
 ## Code Style Guidelines
 - Use descriptive variable names

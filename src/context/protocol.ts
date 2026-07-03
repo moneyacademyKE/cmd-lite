@@ -5,6 +5,7 @@ export const IPC_ACTIONS = {
   CLAIM_UI_LOCK: "claimUiLock",
   APPLY_EDIT: "applyEdit",
   OPEN_FILE: "openFile",
+  PING: "ping",
 } as const;
 
 export const IPC_AUTH_TIMEOUT_MS = 5000;

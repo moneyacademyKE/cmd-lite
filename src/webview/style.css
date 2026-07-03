@@ -1130,6 +1130,67 @@ button:hover::before {
   word-break: break-all;
 }
 
+/* ─── LOOP TIMELINE ───────────────────────────── */
+
+.loop-summary {
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.loop-status {
+  color: var(--accent);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.loop-task,
+.loop-verify,
+.loop-report {
+  font-size: 10px;
+  color: var(--fg-color);
+  word-break: break-word;
+}
+
+.loop-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loop-timeline {
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loop-iteration {
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+
+.loop-iteration-title {
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.loop-iteration-summary {
+  margin-top: 5px;
+  color: var(--fg-color);
+  font-size: 10px;
+  white-space: pre-wrap;
+}
+
 /* ─── MESSAGE APPEARANCE ANIMATIONS ──────────── */
 
 @keyframes message-slide-in {
@@ -1888,5 +1949,4 @@ textarea {
   letter-spacing: 0.5px !important;
   color: var(--fg-color) !important;
 }
-
 

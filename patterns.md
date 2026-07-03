@@ -25,7 +25,7 @@
 
 ## CI Lockfile Platform Alignment Pattern
 - When utilizing build tools or bundlers (e.g. `esbuild`) that require platform-specific native binaries (e.g., `@esbuild/linux-x64` for Linux runners, and `@esbuild/darwin-arm64` for macOS local development), align the top-level package version of the tool in `devDependencies` with transitive dependencies brought in by test runners or bundlers (e.g., `vitest` / `vite`).
-- This alignment ensures that `npm install` records the matching versions and files for all possible platforms in `package-lock.json`, preventing `npm ci` failures due to missing platform-specific packages on CI runners.
+- This alignment ensures that `pnpm install` records the matching versions and files for all possible platforms in `pnpm-lock.yaml`, preventing frozen-lockfile failures due to missing platform-specific packages on CI runners.
 
 ## Thin Glass UI Pattern
 - When adding complex frontend UIs (like Kilo Code-style chat panels) to a CLI wrapper extension, avoid state entanglement.
@@ -115,8 +115,8 @@
 ---
 
 ## Direct Webview Bash Terminal Pattern
-- **Context**: A user wishes to run standard terminal scripts (`npm test`) directly from the webview, but routing it through the LLM pipeline creates massive latency and security vulnerabilities.
-- **Solution**: Route `!` prefixes to direct process spawning on the extension host, letting child processes execute natively in the active workspace and streaming stdout/stderr back in real-time. This provides shell parity securely.
+- **Context**: A user wishes to run standard terminal scripts (for example, `pnpm test`) directly from the webview, but routing it through the LLM pipeline creates massive latency and security vulnerabilities.
+- **Solution**: Route `!` prefixes to direct process spawning only when `cmd-lite.allowShellTool` is enabled for a trusted workspace/session. Keep shell execution disabled by default and stream stdout/stderr back in real time when explicitly allowed.
 
 ---
 
@@ -195,13 +195,13 @@
 
 ## Atomic Local CLI Swapping Pattern
 - **Context**: Unpacking CLI updates directly into the active executable folder complects files in active use with network/download operations, resulting in file locks, write collisions, or corrupted runtimes if download operations fail mid-flight.
-- **Solution**: Decouple the deployment from active execution. Download and extract the package to a separate directory (`cli-new`), verify that all core entrypoint files (e.g. `dist/index.mjs`) are present, swap the folder names synchronously to complete the transaction, and clean up the old directory (`cli-old`) in the background.
+- **Solution**: Decouple the deployment from active execution. Download and extract the package to a separate directory (`cli-new`), verify that a native executable (`command-code`, `cmd`, or platform `.exe` variant) is present, swap the folder names synchronously to complete the transaction, and clean up the old directory (`cli-old`) in the background.
 
 ---
 
-## Node ES-Module Executable Wrapping Pattern
-- **Context**: Executing local Node.js binaries across diverse operating systems (Windows, macOS, Linux) traditionally requires packaging compiled platform binaries or writing fragile shell execution wrappers, which introduces accidental build complexity.
-- **Solution**: Wrap execution around the active extension host environment. If the resolved path points to a javascript script (e.g., ending with `.mjs` or `.js`), intercept the spawn routine, use `process.execPath` (the embedded Node binary) as the executable, and prepend the script path to the CLI command arguments. This guarantees cross-platform execution parity without shell dependency.
+## Native CLI Binary Precedence Pattern
+- **Context**: Launching stale Node package entrypoints such as `dist/index.mjs` through Electron-derived editor helper processes can crash interactive terminals and couples the extension to CLI package internals.
+- **Solution**: Treat precompiled `cmd` / `command-code` binaries as canonical. Resolve explicit binary paths or PATH commands first, ignore stale local Node entrypoints, and require local update artifacts to contain native executables.
 
 ---
 
@@ -337,6 +337,5 @@
 ## Single VSIX Artifact Reusability Pattern
 - **Context**: When publishing to multiple registries (like VS Code Marketplace and Open VSX), compiling and packaging the extension separately for each target environment complects deployment. It increases resource consumption and risks shipping mismatching versions if the build runner's environment changes mid-run.
 - **Solution**: Decouple the packaging phase from the registry uploading phase. Package the extension *once* to generate a versioned `.vsix` file. Pass that exact same packaged file as an input argument (using `-i` / `--packagePath`) to both publishing runners. This guarantees identical binary assets across all platforms.
-
 
 

@@ -32,8 +32,8 @@ The unofficial extension is built as a **decoupled, feature-rich wrapper** that 
 | **Event-Driven Wakeups** | ❌ | ✅ | **Feature**: Replaces polling with standard MCP webhook triggers for background tasks. |
 | **Session History Log** | ❌ | ✅ | **Feature**: Reads active sessions and metadata straight from `~/.commandcode/projects/`. |
 | **Reactive Configuration** | ❌ | ✅ | **Robust**: Instantly updates CLI path validation and status bars on setting changes. |
-| **Test Coverage** | ❌ | ✅ | **Quality**: 38 unit tests configured with Vitest + automated GitHub Actions CI. |
-| **CLI Auto-Bundle** | ✅ | ✅ | **Unified**: Automatically installs and updates the CLI package locally in globalStorageUri. |
+| **Test Coverage** | ❌ | ✅ | **Quality**: Extensive Vitest coverage across CLI resolution, IPC, webview regression, loop workflows, and packaging behavior. |
+| **CLI Resolution** | ✅ | ✅ | **Unified**: Prefers a precompiled `cmd`/`command-code` binary on PATH or an explicit `cmd-lite.cliPath`; local update artifacts must contain a native binary. |
 
 ---
 
@@ -73,23 +73,22 @@ Running multiple agents concurrently (e.g., implementing, testing, and documenti
 ## 🛠️ Installation & Quick Start
 
 ### 1. Prerequisites (CLI Installation)
-Since we do not bundle the proprietary binary, you must install the `command-code` CLI globally:
+Since we do not bundle the proprietary binary, install the precompiled `command-code` CLI so `cmd` or `command-code` is available on your PATH, or set `cmd-lite.cliPath` to the binary path.
 
 ```bash
-npm i -g command-code
+command-code --version
+# or
+cmd --version
 ```
 
 > [!TIP]
-> In environments with both npm and yarn configured globally, updating the CLI using standard `cmd update` might modify the NPM prefix while leaving the active Homebrew system binary pointing to the legacy Yarn path. If your CLI version is mismatched, update via:
-> ```bash
-> yarn global add command-code@latest
-> ```
+> If multiple package managers installed `cmd`, check `which cmd` and configure `cmd-lite.cliPath` to the intended precompiled binary. CMD Lite intentionally ignores stale local Node entrypoints such as `dist/index.mjs`.
 
 ### 2. Install the Extension VSIX
 You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/cmd-lite/releases) page. Install it directly via your terminal:
 
 ```bash
-code --install-extension cmd-lite-0.5.4.vsix
+code --install-extension cmd-lite-0.5.6.vsix
 ```
 
 ---
@@ -124,8 +123,8 @@ We support dual-registry publishing to the Visual Studio Marketplace and the Ope
    - `OVSX_PAT`: Open VSX registry Access Token.
 2. Push a release tag matching your version:
    ```bash
-   git tag v0.5.4
-   git push origin v0.5.4
+   git tag v0.5.6
+   git push origin v0.5.6
    ```
 3. GitHub Actions will automatically validate, compile, package, and deploy the single VSIX artifact to both registries.
 
@@ -148,6 +147,21 @@ pnpm run publish
 * `cmd-lite.defaultPermissionMode`: Default permission mode (`standard`, `plan`, `auto-accept`).
 * `cmd-lite.showStatusBar`: Toggle the status bar session indicator.
 * `cmd-lite.context.maxSelectionLength`: Caps the text selection context shared over IPC.
+* `cmd-lite.allowShellTool`: Enables direct shell execution tools for trusted workspaces only.
+
+### Bounded Agent Loops
+
+Use **Command Code: Run Bounded Agent Loop** to repeat one agent task with a verification check. Each iteration asks the CLI to make one bounded improvement, run or satisfy the verification, and finish with `LOOP_DONE` or `LOOP_CONTINUE`. The loop stops on completion, cancellation, repeated failures, or the configured iteration limit.
+
+Supporting commands and UI:
+
+* `Command Code: Stop Active Loop`
+* `Command Code: Open Last Loop Report`
+* `Command Code: Browse Loop Reports`
+* `/loops` slash command in the webview
+* `LOOPS` action-bar panel with timeline and status
+
+Loop reports are written to `~/.commandcode/loops/` as JSON files.
 
 ---
 

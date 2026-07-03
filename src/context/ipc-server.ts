@@ -17,6 +17,11 @@ import {
 } from "./protocol";
 import { Logger } from "../logger";
 
+function lockSocketPermissions(socketPath: string): void {
+  if (process.platform === "win32") return;
+  fs.chmodSync(socketPath, 0o600);
+}
+
 function createErrorResponse(
   id: string,
   message: string,
@@ -130,15 +135,13 @@ export class IPCServer implements vscode.Disposable {
       if (!this.server) return;
       this.server.listen(this.socketPath, () => {
         try {
-          if (process.platform !== "win32") {
-            fs.chmodSync(this.socketPath, 0o600);
-          }
+          lockSocketPermissions(this.socketPath);
         } catch (error) {
           this.log(
             `chmod socket failed: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
-        this.log(`IPC server started (auth token: ${this.authToken})`);
+        this.log("IPC server started.");
         resolve();
       });
 
@@ -156,7 +159,14 @@ export class IPCServer implements vscode.Disposable {
             this.handleConnection(socket),
           );
           this.server.listen(this.socketPath, () => {
-            this.log(`IPC server started on retry (auth token: ${this.authToken})`);
+            try {
+              lockSocketPermissions(this.socketPath);
+            } catch (error) {
+              this.log(
+                `chmod socket failed on retry: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+            this.log("IPC server started on retry.");
             resolve();
           });
           this.server.on("error", (retryError) => {
@@ -367,6 +377,12 @@ export class IPCServer implements vscode.Disposable {
         }
         const success = await this.contextProvider.openFile(request.payload.filePath);
         const response = createContextResponse(request.id, { success });
+        this.sendMessage(socket, response);
+        return;
+      }
+
+      if (action === IPC_ACTIONS.PING) {
+        const response = createContextResponse(request.id, { success: true, pong: true, timestamp: Date.now() });
         this.sendMessage(socket, response);
         return;
       }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { EventEmitter } from "node:events";
 
 // Mock vscode
 let mockLocalRegistryPath: string | undefined = undefined;
@@ -29,6 +30,30 @@ vi.mock("vscode", () => {
 let execCommandHistory: string[] = [];
 let mockPackageJsonContent: string | undefined = undefined;
 vi.mock("node:child_process", () => {
+  const spawn = vi.fn((cmd: string, args: string[]) => {
+    const emitter = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; kill: () => void };
+    emitter.stdout = new EventEmitter();
+    emitter.stderr = new EventEmitter();
+    emitter.kill = vi.fn();
+
+    setTimeout(() => {
+      if (cmd === "tar") {
+        const dest = args[args.length - 1];
+        fs.mkdirSync(dest, { recursive: true });
+        fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.45.0");
+        if (mockPackageJsonContent) {
+          fs.writeFileSync(path.join(dest, "package.json"), mockPackageJsonContent);
+        }
+        emitter.emit("close", 0);
+        return;
+      }
+      emitter.stdout.emit("data", Buffer.from("0.45.0\n"));
+      emitter.emit("close", 0);
+    }, 0);
+
+    return emitter;
+  });
+
   return {
     exec: (cmd: string, options: unknown, callback?: unknown) => {
       execCommandHistory.push(cmd);
@@ -37,8 +62,8 @@ vi.mock("node:child_process", () => {
         const destMatch = /-C\s+"([^"]+)"/.exec(cmd);
         if (destMatch) {
           const dest = destMatch[1];
-          fs.mkdirSync(path.join(dest, "dist"), { recursive: true });
-          fs.writeFileSync(path.join(dest, "dist", "index.mjs"), "console.log('mock index.mjs')");
+          fs.mkdirSync(dest, { recursive: true });
+          fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.45.0");
           if (mockPackageJsonContent) {
             fs.writeFileSync(path.join(dest, "package.json"), mockPackageJsonContent);
           }
@@ -50,7 +75,8 @@ vi.mock("node:child_process", () => {
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
       };
-    }
+    },
+    spawn,
   };
 });
 
@@ -107,7 +133,7 @@ describe("Local CLI registry override updates", () => {
     expect(resolvedPath).toBe(path.resolve("/mock/workspace/root/my-local-reg"));
   });
 
-  it("skips pnpm install if dependencies list is missing or empty", async () => {
+  it("does not run pnpm install for a precompiled CLI package", async () => {
     // Write package.json with no dependencies
     const pkgJson = { version: "0.45.0" };
     mockPackageJsonContent = JSON.stringify(pkgJson);
@@ -119,13 +145,11 @@ describe("Local CLI registry override updates", () => {
     const result = await installOrUpdateLocalCli(mockStorageUri);
     expect(result.version).toBe("0.45.0");
 
-    // Verify pnpm install was NOT run
     const ranPnpm = execCommandHistory.some(cmd => cmd.includes("pnpm install"));
     expect(ranPnpm).toBe(false);
   });
 
-  it("runs pnpm install if dependencies list is non-empty", async () => {
-    // Write package.json with dependencies
+  it("ignores package dependencies because the CLI artifact is precompiled", async () => {
     const pkgJson = { 
       version: "0.45.0",
       dependencies: { "some-pkg": "^1.0.0" }
@@ -139,8 +163,7 @@ describe("Local CLI registry override updates", () => {
     const result = await installOrUpdateLocalCli(mockStorageUri);
     expect(result.version).toBe("0.45.0");
 
-    // Verify pnpm install WAS run
     const ranPnpm = execCommandHistory.some(cmd => cmd.includes("pnpm install"));
-    expect(ranPnpm).toBe(true);
+    expect(ranPnpm).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import { Logger } from "../logger";
 import { SessionManager } from "../sessionManager";
 
@@ -9,21 +9,25 @@ const session = SessionManager.getInstance();
  * Check if the given directory is inside a git repo with changes to stash.
  */
 function isGitRepo(cwd: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    exec("git rev-parse --is-inside-work-tree", { cwd }, (err) => {
-      resolve(!err);
-    });
-  });
+  return runGit(cwd, ["rev-parse", "--is-inside-work-tree"]).then((result) => result.code === 0);
 }
 
 /**
  * Check if there are any unstaged or staged changes to stash.
  */
 function hasChanges(cwd: string): Promise<boolean> {
+  return runGit(cwd, ["status", "--porcelain"]).then((result) => result.stdout.trim().length > 0);
+}
+
+function runGit(cwd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    exec("git status --porcelain", { cwd }, (_err, stdout) => {
-      resolve(stdout.trim().length > 0);
-    });
+    const child = spawn("git", args, { cwd, shell: false });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => { stdout += chunk.toString(); });
+    child.stderr?.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", (error) => resolve({ code: 1, stdout, stderr: error.message }));
+    child.on("close", (code) => resolve({ code: code ?? 0, stdout, stderr }));
   });
 }
 
@@ -39,17 +43,13 @@ export async function createPreCheckpoint(cwd?: string): Promise<boolean> {
   const timestamp = Date.now();
   const message = `${CHECKPOINT_PREFIX}${timestamp}`;
 
-  return new Promise((resolve) => {
-    exec(`git stash push -m "${message}" --include-untracked`, { cwd: dir }, (err, _stdout, stderr) => {
-      if (err) {
-        Logger.error("CommandCode: checkpoint failed:", stderr);
-        resolve(false);
-        return;
-      }
-      session.lastCheckpointRef = message;
-      resolve(true);
-    });
-  });
+  const result = await runGit(dir, ["stash", "push", "-m", message, "--include-untracked"]);
+  if (result.code !== 0) {
+    Logger.error("CommandCode: checkpoint failed:", result.stderr);
+    return false;
+  }
+  session.lastCheckpointRef = message;
+  return true;
 }
 
 /**
@@ -61,29 +61,17 @@ export async function restoreLastCheckpoint(cwd?: string): Promise<boolean> {
   if (!(await isGitRepo(dir))) return false;
 
   // Find the most recent cmd-lite stash
-  return new Promise((resolve) => {
-    exec(
-      `git stash list --grep="${CHECKPOINT_PREFIX}" --format="%gd"`,
-      { cwd: dir },
-      (_err, stdout) => {
-        const refs = stdout.trim().split(/\r?\n/).filter(Boolean);
-        if (refs.length === 0) {
-          resolve(false);
-          return;
-        }
-        const mostRecent = refs[0];
-        exec(`git stash pop ${mostRecent}`, { cwd: dir }, (popErr, _so, se) => {
-          if (popErr) {
-            Logger.error("CommandCode: restore checkpoint failed:", se);
-            resolve(false);
-            return;
-          }
-          session.lastCheckpointRef = null;
-          resolve(true);
-        });
-      },
-    );
-  });
+  const listResult = await runGit(dir, ["stash", "list", `--grep=${CHECKPOINT_PREFIX}`, "--format=%gd"]);
+  const refs = listResult.stdout.trim().split(/\r?\n/).filter(Boolean);
+  if (refs.length === 0) return false;
+
+  const popResult = await runGit(dir, ["stash", "pop", refs[0]]);
+  if (popResult.code !== 0) {
+    Logger.error("CommandCode: restore checkpoint failed:", popResult.stderr);
+    return false;
+  }
+  session.lastCheckpointRef = null;
+  return true;
 }
 
 export function getLastCheckpointRef(): string | null {

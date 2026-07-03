@@ -52,3 +52,13 @@ This document compiles the chronological history of key design choices and archi
     1.  **Babashka Pre-flight Check (`scripts/publish.clj`)**: Validates clean git state, TypeScript types, linter, tests, and packages a dry-run `.vsix` file locally.
     2.  **Tag-Triggered CI/CD Release Workflow**: Pushing a tag (`v*`) runs a clean container, compiles and packages the extension exactly *once*, and deploys that **single VSIX artifact** to both the Visual Studio Marketplace and the Open VSX Registry, ensuring binary parity.
     3.  **CI/CD Runtimes Upgrades**: Upgraded Node setups to `22.x` to satisfy `pnpm` 11's requirement for the native `node:sqlite` module, and added Babashka setup to the runner.
+
+### ADR-010: Native Binary Precedence for CLI Resolution (v0.5.5)
+*   **Context**: Electron-derived editors such as Antigravity can crash when an interactive terminal launches stale package entrypoints like `globalStorage/.../cli/dist/index.mjs` through the editor helper process. This complects the editor runtime with CLI package internals.
+*   **Decision**: Treat precompiled `cmd` / `command-code` binaries as canonical. CMD Lite prefers configured native binaries or PATH binaries and only accepts local update artifacts that contain native executables (`command-code`, `cmd`, or platform `.exe` variants). Stale `dist/index.mjs` package entrypoints are ignored.
+*   **Consequence**: CLI updates are simpler and safer, but local registry packages must publish a native executable artifact rather than relying on Node package dependency installation.
+
+### ADR-011: Bounded Agent Loops over Infinite Autonomy (v0.5.6)
+*   **Context**: Dogfood scripts such as `loop_infinite.clj` demonstrate high leverage from repeated observe-act-verify cycles, but unbounded loops can run away, repeatedly fail, or mutate more scope than intended.
+*   **Decision**: CMD Lite exposes a bounded loop command that requires a task, verification signal, maximum iteration count, retry limit, cancellation path, and explicit `LOOP_DONE` / `LOOP_CONTINUE` agent markers.
+*   **Consequence**: Users get repeatable agent progress without granting indefinite autonomy. Future scheduled loops must preserve the same terminal states and approval boundaries.

@@ -8,10 +8,10 @@ This document outlines the strategic engineering roadmap to mature the **CMD Lit
 
 We analyze the gap between the current developer-oriented architecture and a hardened, production-grade system.
 
-| Dimension | Current State (v0.5.4 Baseline) | Target State (Production-Grade) | Architectural Benefit | Accidental Complexity |
+| Dimension | Current State (v0.5.6 Baseline) | Target State (Production-Grade) | Architectural Benefit | Accidental Complexity |
 | :--- | :--- | :--- | :--- | :--- |
-| **Credential Security** | Auth tokens and session parameters stored in globalState or plaintext filesystem files (`~/.commandcode/session.json`). | **Encrypted OS-level Storage**: Leverage the VS Code `SecretStorage` API (backed by macOS Keychain/Windows Credential Manager) for tokens, keeping local state purely non-sensitive. | Prevents local privilege escalation and credential theft from unauthorized local files reads. | Requires abstraction interfaces to read secrets asynchronously. |
-| **Activation & Startup** | Actively binds to `onStartupFinished` (contributing to overall editor startup delay). | **Lazy Event-Driven Activation**: Binds strictly to targeted activation events (e.g., commands triggers `cmd-lite.*` or markdown/clojure editor triggers). | Ensures zero overhead on initial VS Code load, keeping editor memory footprints small. | Requires precise package.json mapping for interactive commands. |
+| **Credential Security** | Session metadata is written to `~/.commandcode/ide` with `0o600`; IPC auth tokens are no longer logged, but remain in session JSON for current CLI handshake compatibility. | **Encrypted OS-level Storage**: Move persisted handshake secrets to VS Code `SecretStorage` or a CLI-compatible secure handshake. | Prevents local privilege escalation and credential theft from unauthorized local files reads. | Requires a coordinated CLI protocol change. |
+| **Activation & Startup** | Uses targeted view/command activation events instead of broad startup activation. | **Fully Lazy Services**: Delay IPC/MCP service startup until a command/view actually needs CLI context. | Keeps editor memory footprints small. | Requires precise service lifecycle ownership. |
 | **IPC Sockets Lifecycle** | UDS sockets spawned dynamically without automatic timeout guards or socket garbage-collection, relying on node garbage collector. | **Hardened Socket Lifecycles**: Strict connection timeout limits, active heartbeat/keep-alive validation, and auto-disposal of idle socket handles. | Eliminates memory leaks and prevents dangling zombie sockets when CLI runs are interrupted. | Adds minor socket check interval overhead. |
 | **Error Isolation** | Unhandled process rejections are caught globally, and binary errors print directly to stdout/stderr stream panels. | **Sanitized Graceful Boundaries**: Intercepts binary panic codes, masks internal directory paths and secret tokens from logs, and routes user-actionable tips. | Protects developer confidentiality; prevents log exposure of private project structures. | Requires regex and filter mappings for string streams. |
 | **Universal Portability** | Extension host contains minor configuration bindings tightly coupled to the VS Code extension runtime. | **Editor-Agnostic Core**: Isolates core connection logic into a shared, standard MCP Client wrapper compatible with Zed, Cursor, or Claude Desktop. | Enables instant expansion to Zed, Cursor, and Claude Desktop using identical CLI transport streams. | Incurs minor abstraction layers for editor-specific features. |
@@ -25,7 +25,7 @@ The proposed production-grade tasks are classified by utility and implementation
 | Milestone / Feature | Utility | Complexity | Classification | Action |
 | :--- | :---: | :---: | :---: | :--- |
 | **Secure Token Encryption via SecretStorage** | High | Low | Security | **Phase 1 (Critical).** Migrate auth handling to native Keychain. |
-| **Lazy Activation Events Optimization** | High | Low | Performance | **Phase 1 (Critical).** Remove broad startup triggers. |
+| **Fully Lazy Service Startup** | High | Medium | Performance | **Phase 1 (Critical).** Activation is targeted; continue deferring IPC/MCP startup until first real use. |
 | **IPC Connection Heartbeats & Timeout Guards** | Medium | Medium | Reliability | **Phase 2.** Prevent zombie socket leaks. |
 | **Log Sanitizer (Secret Masking)** | High | Low | Security / Observability | **Phase 2.** Mask sensitive tokens in stderr. |
 | **Cross-Editor Transport Standard (stdio/SSE)** | Medium | High | Portability | **Phase 3.** Support Zed / Cursor clients natively. |
@@ -37,11 +37,11 @@ The proposed production-grade tasks are classified by utility and implementation
 
 ### Phase 1: Security Hardening & Startup Optimization (Immediate)
 *   **Encrypted Storage Integration**:
-    *   Migrate authentication tokens from the local configuration files to VS Code's native `ExtensionContext.secrets` (`SecretStorage`).
+    *   Migrate authentication tokens from session metadata files to VS Code's native `ExtensionContext.secrets` (`SecretStorage`) or a CLI-compatible secure bridge.
     *   Expose a secure bridge so that the local CLI (`cmd`) can query the active session token headlessly using a secure verification handshake (authenticated UDS query).
-*   **Lazy Activation**:
-    *   Deprecate the `"onStartupFinished"` trigger in `package.json`.
-    *   Replace it with specific trigger events (e.g. `onCommand:cmd-lite.start`, `onView:cmd-lite.chatView`) so the extension does not boot memory arrays until the user interacts with the UI.
+*   **Lazy Services**:
+    *   Keep targeted activation events (`onCommand:cmd-lite.*`, `onView:cmd-lite.*`) in `package.json`.
+    *   Continue decomplecting activation from service startup so IPC/MCP servers are created only when needed.
 
 ### Phase 2: Lifecycle Resilience & Observability (Medium-Term)
 *   **Hardened IPC Server Connection Pool**:

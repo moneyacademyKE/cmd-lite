@@ -1,5 +1,5 @@
 import * as cp from "node:child_process";
-import { getActiveCwd } from "../../config";
+import { getActiveCwd, shellToolEnabled } from "../../config";
 import type { McpTool } from "../server";
 import { Logger } from "../../logger";
 
@@ -23,6 +23,17 @@ export const terminalTool: McpTool = {
     required: ["command"],
   },
   execute: async (args: Record<string, unknown>) => {
+    if (!shellToolEnabled()) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Shell execution is disabled. Enable cmd-lite.allowShellTool only for trusted workspaces/sessions.",
+          },
+        ],
+      };
+    }
+
     const command = args.command as string;
     const cwd = (args.cwd as string) || getActiveCwd();
 

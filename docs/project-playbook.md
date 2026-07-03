@@ -23,7 +23,7 @@ Below we contrast CMD Lite's de-complected architecture with typical heavy edito
 | :--- | :--- | :--- | :--- | :--- |
 | **Visual Rendering** | **Framework-Driven (React/SolidJS)**<br>Local state, component lifecycles, virtual DOM sync. | **"Thin Glass" Vanilla JS**<br>Stateless document rendering, direct DOM projection. | Zero dependency bugs, instant loading, absolute decoupling from React memory leaks. | Manual DOM projection logic and custom regex tokenizers. |
 | **Context Extraction** | **Direct Extension Host APIs**<br>Synchronous editor checks blocking LLM generation loops. | **IPC UDS Socket Server**<br>Asynchronous, newline-delimited JSON-RPC over Unix sockets. | CLI runs identically in editor, terminal, or CI/CD pipelines. | Serialization overhead; Unix socket lifecycle management. |
-| **Tool Execution** | **Custom bundled Javascript**<br>Executing code inline inside extension processes. | **Model Context Protocol (MCP)**<br>Dynamic runtime resolution via playbooks and standard servers. | Extensible tool set; zero extension binary maintenance. | Requires node/npm environment during first run. |
+| **Tool Execution** | **Custom bundled Javascript**<br>Executing code inline inside extension processes. | **Model Context Protocol (MCP)**<br>Dynamic runtime resolution via playbooks and standard servers. | Extensible tool set; zero extension binary maintenance. | External MCP servers may require a Node runtime when explicitly enabled. |
 | **Security Layer** | **Extension Memento Database**<br>GlobalState locks permissions to a single editor instance. | **Shared Filesystem Database**<br>JSON-serialized permission files in `~/.commandcode/permissions.json`. | Unified security profile across headless runs, terminals, and multiple IDEs. | Directory access rights and filesystem collision handling. |
 | **Code Validation** | **Compile-time assertions (`as any`)**<br>Assuming payload structures under TypeScript. | **Strict Runtime Narrowing**<br>Type guard functions validating inputs at boundaries. | Bulletproof communication; prevent runtime JSON parse crashes. | Minor boilerplate code validation blocks. |
 
@@ -62,7 +62,7 @@ graph TD
 *   **Location**: [src/webview/main.ts](file:///Users/moe/Desktop/cmd/src/webview/main.ts), [src/webview/style.css](file:///Users/moe/Desktop/cmd/src/webview/style.css)
 *   **Rules**:
     *   **Zero Authoritative State**: Do not store state in JS variables. If state changes, serialize it to `vscode.setState()` and redraw the DOM projection based on events.
-    *   **CSS-Driven Panel Routing**: Switch panels (Chat, Sessions, Status, Agents) by toggling the `panel-active` class. Reject JS routers.
+    *   **CSS-Driven Panel Routing**: Switch panels (Chat, Sessions, Status, Agents, Loops) by toggling the `panel-active` class. Reject JS routers.
     *   **Theme Integration**: Bind custom scrollbars to native VS Code CSS variables:
         ```css
         ::-webkit-scrollbar-thumb {
@@ -90,6 +90,13 @@ graph TD
 *   **Rules**:
     *   **Centralized Output**: Implement all diagnostics via a singleton `Logger` wrapping VS Code's `LogOutputChannel`.
     *   **No Scattered Output Channels**: Never call `createOutputChannel` inline inside modules. This complects logging lifecycle with code execution and leaks memory.
+
+### 5. Bounded Agent Loops
+*   **Location**: [src/agents/loop.ts](file:///Users/moe/Desktop/cmd/src/agents/loop.ts), [src/webview/main.ts](file:///Users/moe/Desktop/cmd/src/webview/main.ts)
+*   **Rules**:
+    *   **Bounded, Not Infinite**: Every loop must have an iteration limit, retry limit, cancellation path, and explicit terminal states.
+    *   **Thin Glass Projection**: The webview only renders loop state (`running`, `completed`, `failed`, `cancelled`, `exhausted`) and iteration summaries; it does not decide loop control.
+    *   **Durable Reports**: Persist loop artifacts as JSON under `~/.commandcode/loops/` for later inspection.
 
 ---
 
@@ -133,4 +140,3 @@ We enforce standard workspace scripts using **Babashka (clojure script)** rather
 *   Verify focus behaviors: Arrow keys and PageUp/PageDown must scroll the chat window when focused inside inputs and on background panel zones.
 *   Verify theme colors: Contrast must adapt dynamically when changing workbench themes.
 *   Verify nested scrollbars: Confirm nested scrollbars do not pass scroll events to the outer parent layout when boundary is reached.
-

@@ -44,4 +44,12 @@ export class SessionManager {
     this.currentDiffManager = null;
     this.currentSessionState = undefined;
   }
+
+  public clearInteractiveState(): void {
+    this.activeAbortController = null;
+    this.turnCount = 0;
+    this.lastCheckpointRef = null;
+    this.currentDiffManager = null;
+    this.currentSessionState = undefined;
+  }
 }

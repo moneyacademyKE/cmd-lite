@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { Readable, Writable } from "node:stream";
+import { EventEmitter } from "node:events";
 import * as vscode from "vscode";
 
 // Mock vscode
@@ -65,6 +66,27 @@ vi.mock("node:https", () => {
 
 // Mock child_process exec to simulate tar extraction and CLI version execution
 vi.mock("node:child_process", () => {
+  const spawn = vi.fn((cmd: string, args: string[]) => {
+    const emitter = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; kill: () => void };
+    emitter.stdout = new EventEmitter();
+    emitter.stderr = new EventEmitter();
+    emitter.kill = vi.fn();
+
+    setTimeout(() => {
+      if (cmd === "tar") {
+        const dest = args[args.length - 1];
+        fs.mkdirSync(dest, { recursive: true });
+        fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.40.0");
+        emitter.emit("close", 0);
+        return;
+      }
+      emitter.stdout.emit("data", Buffer.from("0.40.0\n"));
+      emitter.emit("close", 0);
+    }, 0);
+
+    return emitter;
+  });
+
   return {
     exec: (cmd: string, options: unknown, callback?: unknown) => {
       const cb = (typeof options === "function" ? options : callback) as (err: Error | null, stdout: string, stderr: string) => void;
@@ -73,8 +95,8 @@ vi.mock("node:child_process", () => {
         const destMatch = /-C\s+"([^"]+)"/.exec(cmd);
         if (destMatch) {
           const dest = destMatch[1];
-          fs.mkdirSync(path.join(dest, "dist"), { recursive: true });
-          fs.writeFileSync(path.join(dest, "dist", "index.mjs"), "console.log('latest version')");
+          fs.mkdirSync(dest, { recursive: true });
+          fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.40.0");
         }
       }
       
@@ -85,7 +107,7 @@ vi.mock("node:child_process", () => {
         stderr: { on: vi.fn() },
       };
     },
-    spawn: vi.fn(),
+    spawn,
   };
 });
 
@@ -116,16 +138,26 @@ describe("Local CLI resolution & auto-update", () => {
   });
 
   it("detects no local CLI on empty directory", () => {
-    expect(getLocalCliPath(mockStorageUri)).toBe(path.join(tempStorageDir, "cli", "dist", "index.mjs"));
+    expect(getLocalCliPath(mockStorageUri)).toBe(path.join(tempStorageDir, "cli", "command-code"));
     const detected = detectLocalCli(mockStorageUri);
     expect(detected).toBeUndefined();
   });
 
-  it("detects local CLI when index.mjs exists", () => {
+  it("does not detect stale Node package index.mjs as local CLI", () => {
     const localDir = path.join(tempStorageDir, "cli", "dist");
     fs.mkdirSync(localDir, { recursive: true });
     const localFile = path.join(localDir, "index.mjs");
     fs.writeFileSync(localFile, "console.log('mock CLI')");
+
+    const detected = detectLocalCli(mockStorageUri);
+    expect(detected).toBeUndefined();
+  });
+
+  it("detects local CLI when precompiled binary exists", () => {
+    const localDir = path.join(tempStorageDir, "cli");
+    fs.mkdirSync(localDir, { recursive: true });
+    const localFile = path.join(localDir, "command-code");
+    fs.writeFileSync(localFile, "#!/bin/sh\necho mock CLI");
 
     const detected = detectLocalCli(mockStorageUri);
     expect(detected).toBe(localFile);
@@ -150,7 +182,7 @@ describe("Local CLI resolution & auto-update", () => {
     expect(version).toBe("0.40.0");
 
     const afterSwap = detectLocalCli(mockStorageUri);
-    expect(afterSwap).toBe(path.join(tempStorageDir, "cli", "dist", "index.mjs"));
+    expect(afterSwap).toBe(path.join(tempStorageDir, "cli", "command-code"));
     expect(fs.existsSync(afterSwap!)).toBe(true);
   });
 });

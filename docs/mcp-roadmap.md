@@ -29,7 +29,7 @@ The immediate objective is to strip business logic out of the VS Code extension 
 - **Diff Presentation**: Create an MCP tool for proposing diffs (`cmd-lite-diff`). The agent generates diff blocks independently, and the IDE merely consumes the proposed state to render the `vscode.diff` UI.
 - **External Registries Pivot**: We deprecated custom Babashka file-system scripts. Instead, we use `npx` to dynamically provision official `@modelcontextprotocol/server-filesystem` and `@modelcontextprotocol/server-github` servers, fully decomplecting standard operations from the extension.
 
-> **Note on the `cmd` Precompiled Binary**: Because `cmd` is a precompiled, globally installed binary (managed via `npm i -g command-code`), we do not compile its agent logic in this repository. The migration to standard MCP servers ensures the precompiled binary can dynamically discover these new capabilities at runtime (via standard `mcp.json` config files) without requiring a hard fork or recompilation of the core CLI engine.
+> **Note on the `cmd` Precompiled Binary**: Because `cmd` is a precompiled binary resolved from PATH or `cmd-lite.cliPath`, we do not compile its agent logic in this repository. The migration to standard MCP servers ensures the precompiled binary can dynamically discover these new capabilities at runtime (via standard `mcp.json` config files) without requiring a hard fork or recompilation of the core CLI engine.
 
 ## Phase 2: Agent Autonomy (Mid-Term)
 

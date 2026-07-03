@@ -27,7 +27,7 @@ See [cli/taste.md](cli/taste.md)
 # Versioning
 - All packages share lockstep versioning; every release updates all packages together. Confidence: 0.90
 - `patch` for bug fixes and new features; `minor` for API breaking changes; no major releases. Confidence: 0.90
-- Use `npm run release:patch` or `npm run release:minor` to release. Confidence: 0.90
+- Use the repository publish workflow or pnpm-based release scripts; do not rely on npm release commands in this repo. Confidence: 0.90
 
 # changelog
 See [changelog/taste.md](changelog/taste.md)

@@ -47,6 +47,20 @@ interface MessageItem {
   diffResponse?: 'accept' | 'reject';
 }
 
+interface LoopIterationItem {
+  iteration: number;
+  status: string;
+  summary?: string;
+}
+
+interface LoopStateItem {
+  status: string;
+  task: string;
+  verify?: string;
+  reportPath?: string;
+  iterations: LoopIterationItem[];
+}
+
 const state: {
   tokens: { prompt: number; completion: number; total: number };
   modelId: string;
@@ -58,9 +72,10 @@ const state: {
   isStreaming: boolean;
   context: ContextInfo;
   messages: MessageItem[];
-  activePanel: 'chat' | 'sessions' | 'status' | 'agents';
+  activePanel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops';
   inputDraft: string;
   agents: { name: string; task: string }[];
+  loop: LoopStateItem | null;
   continuousLearning: boolean;
   cliVersion: string;
   modelsLabel: string;
@@ -85,6 +100,7 @@ const state: {
   activePanel: 'chat',
   inputDraft: '',
   agents: [],
+  loop: null,
   continuousLearning: true,
   cliVersion: '',
   modelsLabel: '',
@@ -104,6 +120,7 @@ function saveState() {
     activePanel: state.activePanel,
     inputDraft: state.inputDraft,
     agents: state.agents,
+    loop: state.loop,
     continuousLearning: state.continuousLearning,
     cliVersion: state.cliVersion,
     modelsLabel: state.modelsLabel,
@@ -204,7 +221,7 @@ function handleInputOrCursorChange(input: HTMLTextAreaElement) {
 
   let items: string[] = [];
   if (token.type === '/') {
-    const all = ['help', 'clear', 'plan', 'taste', 'sessions', 'agents'];
+    const all = ['help', 'clear', 'plan', 'taste', 'sessions', 'agents', 'loops'];
     items = all.filter(cmd => cmd.startsWith(token.query));
   } else if (token.type === '@') {
     const allFiles = new Set<string>();
@@ -214,7 +231,7 @@ function handleInputOrCursorChange(input: HTMLTextAreaElement) {
     }
     items = Array.from(allFiles).filter(p => p.toLowerCase().includes(token.query.toLowerCase()));
   } else if (token.type === '!') {
-    const all = ['npm test', 'npm run build', 'git status', 'git diff'];
+    const all = ['pnpm test', 'pnpm run build', 'git status', 'git diff'];
     items = all.filter(cmd => cmd.toLowerCase().startsWith(token.query.toLowerCase()));
   }
 
@@ -530,6 +547,9 @@ function getActiveScrollContainer(): HTMLElement | null {
   }
   if (panel === 'agents') {
     return document.getElementById('agent-list');
+  }
+  if (panel === 'loops') {
+    return document.getElementById('loop-list');
   }
   if (panel === 'status') {
     return document.getElementById('status-content');
@@ -985,7 +1005,7 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
 
 // ─── Panel System ─────────────────────────────────────
 
-function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents') {
+function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops') {
   document.querySelectorAll('.panel').forEach((p) => p.classList.remove('panel-active'));
   const target = document.getElementById(`${panel}-panel`);
   if (target) target.classList.add('panel-active');
@@ -1064,6 +1084,37 @@ function renderAgentList(agents: { name: string; task: string }[]) {
       ${renderCol('Execution', execution)}
       ${renderCol('Verification', verification)}
     </div>
+  `;
+}
+
+function renderLoopPanel(loop: LoopStateItem | null = state.loop) {
+  const list = document.getElementById('loop-list');
+  if (!list) return;
+  switchPanel('loops');
+  if (!loop) {
+    renderEmptyState(list, '\u27F3', 'No loop has run yet', 'Run bounded loop', () => sendAction('run-loop'));
+    return;
+  }
+
+  const iterations = loop.iterations.map((item) => `
+    <div class="loop-iteration loop-${escapeHtml(item.status)}">
+      <div class="loop-iteration-title">ITERATION ${item.iteration} // ${escapeHtml(item.status.toUpperCase())}</div>
+      <div class="loop-iteration-summary">${escapeHtml(item.summary || 'Waiting for output...')}</div>
+    </div>
+  `).join('');
+
+  list.innerHTML = `
+    <div class="loop-summary">
+      <div class="loop-status">STATUS // ${escapeHtml(loop.status.toUpperCase())}</div>
+      <div class="loop-task">${escapeHtml(loop.task)}</div>
+      <div class="loop-verify">VERIFY // ${escapeHtml(loop.verify || 'project checks')}</div>
+      ${loop.reportPath ? `<div class="loop-report">REPORT // ${escapeHtml(loop.reportPath)}</div>` : ''}
+      <div class="loop-actions">
+        <button class="action-btn loop-stop-btn" data-action="stop-loop">STOP LOOP</button>
+        <button class="action-btn loop-report-btn" data-action="open-loop-report">OPEN REPORT</button>
+      </div>
+    </div>
+    <div class="loop-timeline">${iterations || '<div class="session-empty">No iterations recorded</div>'}</div>
   `;
 }
 
@@ -1223,6 +1274,10 @@ function hydrateUI() {
     renderAgentList(state.agents);
   }
 
+  if (state.loop) {
+    renderLoopPanel(state.loop);
+  }
+
   updateHeader();
   updateFooter();
   updateContextPanel();
@@ -1250,6 +1305,10 @@ function attachEventListeners() {
 
       if (action === 'list-agents') {
         switchPanel('agents');
+        return;
+      }
+      if (action === 'list-loops') {
+        renderLoopPanel();
         return;
       }
       if (action === 'list-sessions') {
@@ -1281,6 +1340,15 @@ function attachEventListeners() {
     const item = target.closest('.session-item') as HTMLElement;
     if (item && item.dataset.sessionId) {
       sendAction('resume-session', { sessionId: item.dataset.sessionId });
+    }
+  });
+
+  document.getElementById('loop-list')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest('[data-action]') as HTMLElement | null;
+    const action = button?.dataset.action;
+    if (action === 'stop-loop' || action === 'open-loop-report') {
+      sendAction(action);
     }
   });
 
@@ -1377,6 +1445,11 @@ function attachEventListeners() {
 
         if (cmd === '/agents') {
           switchPanel('agents');
+          return;
+        }
+
+        if (cmd === '/loops') {
+          renderLoopPanel();
           return;
         }
 
@@ -1674,7 +1747,7 @@ function attachEventListeners() {
     }
   });
 
-  // Context file click — send action to open file (future use)
+  // Context file click — open files from the sidebar via the extension host.
   document.getElementById('context-panel')?.addEventListener('click', (e) => {
     const fileRow = (e.target as HTMLElement).closest('.context-file');
     if (fileRow) {
@@ -1846,6 +1919,7 @@ function initUI() {
       <button class="action-btn" data-action="continue" title="Continue Last Session">&#x21BB; CONTINUE</button>
       <button class="action-btn" data-action="list-sessions" title="Recent Sessions">&#x2630; SESSIONS</button>
       <button class="action-btn" data-action="list-agents" title="Active Agents">&#x2691; AGENTS</button>
+      <button class="action-btn" data-action="list-loops" title="Agent Loops">&#x27F3; LOOPS</button>
       <button class="action-btn" data-action="toggle-context" title="Toggle Context Panel">&#x2630; CTX</button>
       <button class="action-btn" data-action="pick-model" title="Pick Model">&#x2699; MODEL</button>
       <button class="action-btn" data-action="pick-permission" title="Pick Permission">&#x2699; PERM</button>
@@ -1894,6 +1968,14 @@ function initUI() {
             <button class="panel-close" data-panel="agents">&#x2715;</button>
           </div>
           <div class="session-list" id="agent-list"></div>
+        </div>
+
+        <div id="loops-panel" class="panel">
+          <div class="panel-header">
+            <span>AGENT LOOPS</span>
+            <button class="panel-close" data-panel="loops">&#x2715;</button>
+          </div>
+          <div class="session-list" id="loop-list"></div>
         </div>
 
         <div id="status-panel" class="panel">
@@ -1965,6 +2047,7 @@ function initUI() {
     state.activePanel = previousState.activePanel || 'chat';
     state.inputDraft = previousState.inputDraft || '';
     state.agents = previousState.agents || [];
+    state.loop = previousState.loop || null;
     state.continuousLearning = previousState.continuousLearning !== undefined ? previousState.continuousLearning : state.continuousLearning;
     state.cliVersion = previousState.cliVersion || '';
     state.modelsLabel = previousState.modelsLabel || '';
@@ -2021,6 +2104,42 @@ window.addEventListener('message', (event: MessageEvent) => {
         state.agents = payload.agents ?? [];
         saveState();
         renderAgentList(state.agents);
+        break;
+      }
+
+      case 'LoopStarted': {
+        state.loop = {
+          status: 'running',
+          task: payload.task ?? '',
+          verify: payload.verify,
+          iterations: [],
+        };
+        saveState();
+        renderLoopPanel(state.loop);
+        break;
+      }
+
+      case 'LoopIteration': {
+        if (!state.loop) {
+          state.loop = { status: 'running', task: '', iterations: [] };
+        }
+        const item = payload as LoopIterationItem;
+        const index = state.loop.iterations.findIndex((entry) => entry.iteration === item.iteration);
+        if (index >= 0) state.loop.iterations[index] = { ...state.loop.iterations[index], ...item };
+        else state.loop.iterations.push(item);
+        saveState();
+        renderLoopPanel(state.loop);
+        break;
+      }
+
+      case 'LoopFinished': {
+        if (!state.loop) {
+          state.loop = { status: payload.status ?? 'completed', task: '', iterations: [] };
+        }
+        state.loop.status = payload.status ?? state.loop.status;
+        state.loop.reportPath = payload.reportPath;
+        saveState();
+        renderLoopPanel(state.loop);
         break;
       }
 

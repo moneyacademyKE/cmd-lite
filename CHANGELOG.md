@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.6
+
+- **Precompiled CLI Safety & Native Binary Precedence**: CMD Lite now prefers precompiled `cmd` / `command-code` binaries and ignores stale local Node package entrypoints such as `dist/index.mjs`, preventing Electron helper trace-trap crashes in editors like Antigravity.
+- **Shell Tool Safety Gate**: Added `cmd-lite.allowShellTool` so direct shell execution from the webview and MCP terminal tools stays disabled by default and is only available for trusted workspaces or sessions.
+- **Sanitized Logging & Safer Filesystem Writes**: Centralized logger redaction now masks tokens and home paths, IPC startup logs no longer print auth tokens, and the shared permissions store now writes atomically via temp-file swap.
+- **Lazy Integration Service Startup**: Activation remains targeted and IPC/MCP services now initialize on demand when the extension actually needs CLI context, reducing eager editor startup work.
+- **Bounded Agent Loops + Reports**: Added bounded loop execution with explicit stop conditions, retry limits, loop timeline UI, `Stop Active Loop`, `Open Last Loop Report`, `Browse Loop Reports`, and durable JSON reports under `~/.commandcode/loops/`.
+- **Loop & Context UX Improvements**: Added a dedicated `LOOPS` panel in the webview, `/loops` local routing, iteration status rendering, and end-to-end context sidebar file opening.
+- **Safer Git/CLI Process Invocation**: Replaced shell-interpolated git checkpoint commands and tar/version shell execution paths with argument-safe `spawn(...)` invocations.
+- **Package & Docs Tightening**: VSIX packaging now excludes non-runtime project artifacts, and README/playbooks/roadmaps were updated for pnpm, native CLI behavior, bounded loops, and current visual parity expectations.
+
 ## 0.5.4
 
 - **Interactive JS/MJS CLI Invocation in Terminals**: Transparently prefixes terminal launches with `node` when launching `.js`/`.mjs` entrypoints, resolving Electron helper process trace trap crashes in standard interactive shells.

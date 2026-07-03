@@ -43,7 +43,9 @@ function saveStore(store: Record<string, PermissionChoice>): void {
     if (!fs.existsSync(storeDir)) {
       fs.mkdirSync(storeDir, { recursive: true, mode: 0o700 });
     }
-    fs.writeFileSync(storePath, JSON.stringify(store, null, 2), "utf-8");
+    const tmpPath = `${storePath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2), { encoding: "utf-8", mode: 0o600 });
+    fs.renameSync(tmpPath, storePath);
     try {
       fs.chmodSync(storePath, 0o600);
     } catch (err) {
@@ -73,4 +75,3 @@ export function clearPermissionStore(key?: string): void {
     saveStore({});
   }
 }
-

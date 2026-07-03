@@ -59,15 +59,16 @@ describe("webview visual parity regression prevention", () => {
 
   // ── Action Bar ──
   describe("action bar parity", () => {
-    it("has 8 action buttons", () => {
+    it("has 9 action buttons", () => {
       const matches = mainSrc.match(/class="action-btn"/g);
-      expect(matches?.length).toBe(8);
+      expect(matches?.length).toBe(9);
     });
 
     it("has START button", () => expect(mainSrc).toContain("START"));
     it("has CONTINUE button", () => expect(mainSrc).toContain("CONTINUE"));
     it("has SESSIONS button", () => expect(mainSrc).toContain("SESSIONS"));
     it("has AGENTS button", () => expect(mainSrc).toContain("AGENTS"));
+    it("has LOOPS button", () => expect(mainSrc).toContain("LOOPS"));
     it("has CTX button", () => expect(mainSrc).toContain("CTX"));
     it("has MODEL button", () => expect(mainSrc).toContain("MODEL"));
     it("has PERM button", () => expect(mainSrc).toContain("PERM"));
@@ -225,6 +226,11 @@ describe("webview visual parity regression prevention", () => {
       expect(mainSrc).toContain("'/agents'");
     });
 
+    it("handles /loops locally", () => {
+      expect(mainSrc).toContain("'/loops'");
+      expect(mainSrc).toContain("renderLoopPanel");
+    });
+
     it("routes unknown slash commands to CLI", () => {
       expect(mainSrc).toContain("cliSlashMsg");
       // Should NOT have "Unknown command" error text
@@ -285,6 +291,13 @@ describe("webview visual parity regression prevention", () => {
     it("has status panel", () => {
       expect(mainSrc).toContain('id="status-panel"');
       expect(css).toContain("status-terminal-bar");
+    });
+
+    it("has loops panel", () => {
+      expect(mainSrc).toContain('id="loops-panel"');
+      expect(mainSrc).toContain('id="loop-list"');
+      expect(css).toContain(".loop-summary");
+      expect(css).toContain(".loop-iteration");
     });
 
     it("has toggleable context sidebar", () => {

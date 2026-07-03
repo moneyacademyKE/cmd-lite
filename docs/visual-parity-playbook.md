@@ -31,6 +31,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | CONTINUE | ↻ | Continue last session |
 | SESSIONS | ☰ | Show session list |
 | AGENTS | ⚑ | Show agents board |
+| LOOPS | ⟳ | Show loop timeline |
 | CTX | ☰ | Toggle context sidebar |
 | MODEL | ⚙ | Pick model |
 | PERM | ⚙ | Pick permission |
@@ -104,6 +105,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | `/plan <task>` | Local routing to CLI | `handles /plan with CLI routing` |
 | `/sessions` | Local (show panel) | `handles /sessions locally` |
 | `/agents` | Local (show panel) | `handles /agents locally` |
+| `/loops` | Local (show panel) | `handles /loops locally` |
 | All others | Routed to CLI | `routes unknown slash commands` |
 
 ### Panels
@@ -113,50 +115,53 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | Chat | Message history + input | `has chat panel` |
 | Sessions | Recent session list | `has sessions panel` |
 | Agents | Kanban board (planning, execution, verification) | `has agents panel` |
+| Loops | Bounded loop summary + iteration timeline | `has loops panel` |
 | Status | Terminal chrome with ANSI-colored output | `has status panel` |
 | Context sidebar | Git, files, diagnostics | `has toggleable context sidebar` |
 
 ## Running Verification
 
 ```bash
-# Run all regression tests (138 tests across 15 files)
-npm test
+# Run the full regression suite
+pnpm test
 
 # Run typecheck
-npm run typecheck
+pnpm run typecheck
 
 # Build extension
-npm run build
+pnpm run build
 
 # Package VSIX
-npm run package
+pnpm run package
 ```
 
-## Playwright Visual Tests
+## IDE Visual Tests
 
-The standalone test page at `scripts/visual-test.html` renders the webview outside VS Code for visual inspection. To compare with the CLI TUI:
+The Antigravity dogfood runner drives the installed extension and captures screenshots for visual inspection. To compare with the CLI TUI:
 
 ```bash
 # Build the webview first
-npm run build
+pnpm run build
 
-# Generate standalone page and take screenshots
-node scripts/final-capture.mjs
+# Launch Antigravity IDE and capture visual states
+bb scripts/dogfood.clj visual
 ```
 
 This produces:
-- `scripts/final-webview.png` — The webview rendered in a headless browser
-- `scripts/final-comparison.png` — Side-by-side with CLI reference
+- `scripts/visual-1-start.png`
+- `scripts/visual-2-streaming.png`
+- `scripts/visual-3-scrolled-up.png`
+- `scripts/visual-4-reset-complete.png`
 
 ## Preventing Regression
 
 When modifying the webview:
 
-1. **Check the regression test file**: `src/__tests__/webview-regression.test.ts` (65 tests)
-2. **Run `npm test`** before committing — all 138 tests must pass
-3. **Run `npm run typecheck`** — zero type errors
-4. **Run `node scripts/final-capture.mjs`** — visually verify side-by-side
-5. **Build the VSIX** with `npm run build` then `npx vsce package`
+1. **Check the regression test file**: `src/__tests__/webview-regression.test.ts` (75 tests)
+2. **Run `pnpm test`** before committing — all tests must pass
+3. **Run `pnpm run typecheck`** — zero type errors
+4. **Run `bb scripts/dogfood.clj visual`** — visually verify the installed extension
+5. **Build the VSIX** with `pnpm run build` then `pnpm run package`
 
 If adding a new visual element:
 1. Add it to `main.ts` HTML template
