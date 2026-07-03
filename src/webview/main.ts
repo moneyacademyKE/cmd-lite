@@ -61,6 +61,16 @@ interface LoopStateItem {
   iterations: LoopIterationItem[];
 }
 
+interface LoopReportItem {
+  label: string;
+  path: string;
+}
+
+interface McpServerItem {
+  name: string;
+  command: string;
+}
+
 const state: {
   tokens: { prompt: number; completion: number; total: number };
   modelId: string;
@@ -72,10 +82,13 @@ const state: {
   isStreaming: boolean;
   context: ContextInfo;
   messages: MessageItem[];
-  activePanel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops';
+  activePanel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops' | 'mcp';
   inputDraft: string;
   agents: { name: string; task: string }[];
   loop: LoopStateItem | null;
+  loopReports: LoopReportItem[];
+  agentMode: string;
+  mcpServers: McpServerItem[];
   continuousLearning: boolean;
   cliVersion: string;
   modelsLabel: string;
@@ -101,6 +114,9 @@ const state: {
   inputDraft: '',
   agents: [],
   loop: null,
+  loopReports: [],
+  agentMode: 'code',
+  mcpServers: [],
   continuousLearning: true,
   cliVersion: '',
   modelsLabel: '',
@@ -121,6 +137,9 @@ function saveState() {
     inputDraft: state.inputDraft,
     agents: state.agents,
     loop: state.loop,
+    loopReports: state.loopReports,
+    agentMode: state.agentMode,
+    mcpServers: state.mcpServers,
     continuousLearning: state.continuousLearning,
     cliVersion: state.cliVersion,
     modelsLabel: state.modelsLabel,
@@ -221,7 +240,7 @@ function handleInputOrCursorChange(input: HTMLTextAreaElement) {
 
   let items: string[] = [];
   if (token.type === '/') {
-    const all = ['help', 'clear', 'plan', 'taste', 'sessions', 'agents', 'loops'];
+    const all = ['help', 'clear', 'plan', 'taste', 'sessions', 'agents', 'loops', 'mcp'];
     items = all.filter(cmd => cmd.startsWith(token.query));
   } else if (token.type === '@') {
     const allFiles = new Set<string>();
@@ -551,6 +570,9 @@ function getActiveScrollContainer(): HTMLElement | null {
   if (panel === 'loops') {
     return document.getElementById('loop-list');
   }
+  if (panel === 'mcp') {
+    return document.getElementById('mcp-list');
+  }
   if (panel === 'status') {
     return document.getElementById('status-content');
   }
@@ -648,7 +670,7 @@ function updateFooter() {
   const fStream = el('footer-stream');
 
   if (fModel) fModel.innerHTML = `MODEL // ${formatModelDisplay(state.modelId)}`;
-  if (fMode) fMode.textContent = `MODE // ${state.permissionMode || 'STANDARD'}`;
+  if (fMode) fMode.textContent = `MODE // ${(state.agentMode || 'code').toUpperCase()} · ${state.permissionMode || 'STANDARD'}`;
   if (fTokens)
     fTokens.textContent = `T // P ${state.tokens.prompt.toLocaleString()} / C ${state.tokens.completion.toLocaleString()} / ${state.tokens.total.toLocaleString()}`;
   if (fSession)
@@ -1005,7 +1027,7 @@ function appendMessage(m: { id: string; role: string; content: string }, streami
 
 // ─── Panel System ─────────────────────────────────────
 
-function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops') {
+function switchPanel(panel: 'chat' | 'sessions' | 'status' | 'agents' | 'loops' | 'mcp') {
   document.querySelectorAll('.panel').forEach((p) => p.classList.remove('panel-active'));
   const target = document.getElementById(`${panel}-panel`);
   if (target) target.classList.add('panel-active');
@@ -1115,7 +1137,27 @@ function renderLoopPanel(loop: LoopStateItem | null = state.loop) {
       </div>
     </div>
     <div class="loop-timeline">${iterations || '<div class="session-empty">No iterations recorded</div>'}</div>
+    <div class="loop-report-history">
+      <div class="loop-iteration-title">REPORT HISTORY</div>
+      ${state.loopReports.length > 0 ? state.loopReports.map((report) => `<div class="loop-report-entry" data-report-path="${escapeHtml(report.path)}">${escapeHtml(report.label)}</div>`).join('') : '<div class="session-empty">No saved reports</div>'}
+    </div>
   `;
+}
+
+function renderMcpPanel(servers: McpServerItem[] = state.mcpServers) {
+  const list = document.getElementById('mcp-list');
+  if (!list) return;
+  switchPanel('mcp');
+  if (servers.length === 0) {
+    renderEmptyState(list, '\u2699', 'No MCP servers configured', 'Generate mcp.json', () => sendAction('generate-mcp-config'));
+    return;
+  }
+  list.innerHTML = servers.map((server) => `
+    <div class="kanban-card">
+      <div class="kanban-card-title">${escapeHtml(server.name)}</div>
+      <div class="kanban-card-desc">${escapeHtml(server.command)}</div>
+    </div>
+  `).join('');
 }
 
 function renderStatus(text: string) {
@@ -1278,6 +1320,10 @@ function hydrateUI() {
     renderLoopPanel(state.loop);
   }
 
+  if (state.mcpServers.length > 0) {
+    renderMcpPanel(state.mcpServers);
+  }
+
   updateHeader();
   updateFooter();
   updateContextPanel();
@@ -1311,8 +1357,14 @@ function attachEventListeners() {
         renderLoopPanel();
         return;
       }
+      if (action === 'list-mcp') {
+        renderMcpPanel();
+        return;
+      }
       if (action === 'list-sessions') {
         sendAction('list-sessions');
+      } else if (action === 'generate-mcp-config') {
+        sendAction('generate-mcp-config');
       } else if (action === 'show-status') {
         sendAction('show-status');
       } else {
@@ -1345,6 +1397,11 @@ function attachEventListeners() {
 
   document.getElementById('loop-list')?.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
+    const reportEntry = target.closest('[data-report-path]') as HTMLElement | null;
+    if (reportEntry?.dataset.reportPath) {
+      sendAction('open-loop-report-path', { reportPath: reportEntry.dataset.reportPath });
+      return;
+    }
     const button = target.closest('[data-action]') as HTMLElement | null;
     const action = button?.dataset.action;
     if (action === 'stop-loop' || action === 'open-loop-report') {
@@ -1450,6 +1507,11 @@ function attachEventListeners() {
 
         if (cmd === '/loops') {
           renderLoopPanel();
+          return;
+        }
+
+        if (cmd === '/mcp') {
+          renderMcpPanel();
           return;
         }
 
@@ -1920,6 +1982,7 @@ function initUI() {
       <button class="action-btn" data-action="list-sessions" title="Recent Sessions">&#x2630; SESSIONS</button>
       <button class="action-btn" data-action="list-agents" title="Active Agents">&#x2691; AGENTS</button>
       <button class="action-btn" data-action="list-loops" title="Agent Loops">&#x27F3; LOOPS</button>
+      <button class="action-btn" data-action="list-mcp" title="MCP Servers">&#x2699; MCP</button>
       <button class="action-btn" data-action="toggle-context" title="Toggle Context Panel">&#x2630; CTX</button>
       <button class="action-btn" data-action="pick-model" title="Pick Model">&#x2699; MODEL</button>
       <button class="action-btn" data-action="pick-permission" title="Pick Permission">&#x2699; PERM</button>
@@ -1976,6 +2039,14 @@ function initUI() {
             <button class="panel-close" data-panel="loops">&#x2715;</button>
           </div>
           <div class="session-list" id="loop-list"></div>
+        </div>
+
+        <div id="mcp-panel" class="panel">
+          <div class="panel-header">
+            <span>MCP SERVERS</span>
+            <button class="panel-close" data-panel="mcp">&#x2715;</button>
+          </div>
+          <div class="session-list" id="mcp-list"></div>
         </div>
 
         <div id="status-panel" class="panel">
@@ -2048,6 +2119,9 @@ function initUI() {
     state.inputDraft = previousState.inputDraft || '';
     state.agents = previousState.agents || [];
     state.loop = previousState.loop || null;
+    state.loopReports = previousState.loopReports || [];
+    state.agentMode = previousState.agentMode || 'code';
+    state.mcpServers = previousState.mcpServers || [];
     state.continuousLearning = previousState.continuousLearning !== undefined ? previousState.continuousLearning : state.continuousLearning;
     state.cliVersion = previousState.cliVersion || '';
     state.modelsLabel = previousState.modelsLabel || '';
@@ -2140,6 +2214,20 @@ window.addEventListener('message', (event: MessageEvent) => {
         state.loop.reportPath = payload.reportPath;
         saveState();
         renderLoopPanel(state.loop);
+        break;
+      }
+
+      case 'LoopReports': {
+        state.loopReports = payload.reports ?? [];
+        saveState();
+        if (state.activePanel === 'loops') renderLoopPanel(state.loop);
+        break;
+      }
+
+      case 'McpStatus': {
+        state.mcpServers = payload.servers ?? [];
+        saveState();
+        renderMcpPanel(state.mcpServers);
         break;
       }
 
@@ -2236,7 +2324,7 @@ window.addEventListener('message', (event: MessageEvent) => {
       }
 
       case 'initState': {
-        const { modelId, permissionMode, tokens, sessionId, turnCount, cliVersion, modelsLabel } =
+        const { modelId, permissionMode, tokens, sessionId, turnCount, cliVersion, modelsLabel, agentMode } =
           payload as {
             modelId: string;
             permissionMode: string;
@@ -2249,12 +2337,14 @@ window.addEventListener('message', (event: MessageEvent) => {
             turnCount?: number;
             cliVersion?: string;
             modelsLabel?: string;
+            agentMode?: string;
           };
         state.modelId = modelId;
         state.permissionMode = permissionMode;
         state.tokens = tokens;
         state.currentSessionId = sessionId ?? null;
         state.turnCount = turnCount ?? 0;
+        if (agentMode) state.agentMode = agentMode;
         if (cliVersion) state.cliVersion = cliVersion;
         if (modelsLabel) state.modelsLabel = modelsLabel;
         saveState();
@@ -2279,6 +2369,13 @@ window.addEventListener('message', (event: MessageEvent) => {
         }
         saveState();
         updateHeader();
+        updateFooter();
+        break;
+      }
+
+      case 'AgentModeChanged': {
+        state.agentMode = payload.agentMode ?? state.agentMode;
+        saveState();
         updateFooter();
         break;
       }

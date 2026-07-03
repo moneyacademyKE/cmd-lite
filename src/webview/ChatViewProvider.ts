@@ -4,6 +4,7 @@ import { resolveCliPath, checkCliVersion } from '../cli/resolve';
 import type { EditorContext } from '../context/protocol';
 import { Logger } from '../logger';
 import { readSessionState } from '../cli/store';
+import { getParticipantAgentMode } from '../chat/participant';
 
 import { SessionManager } from '../sessionManager';
 
@@ -108,6 +109,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           tokens: { prompt: 0, completion: 0, total: 0 },
           sessionId: session.currentSessionId ?? '',
           turnCount: session.turnCount,
+          agentMode: getParticipantAgentMode(),
           cliVersion: this._cliVersion,
           modelsLabel: this._buildModelsLabel(),
         }
@@ -128,6 +130,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             tokens: { prompt: 0, completion: 0, total: 0 },
             sessionId: session.currentSessionId ?? '',
             turnCount: session.turnCount,
+            agentMode: getParticipantAgentMode(),
             cliVersion: this._cliVersion,
             modelsLabel: this._buildModelsLabel(),
           }

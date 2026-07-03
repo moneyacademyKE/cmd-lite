@@ -25,7 +25,7 @@ import {
 import { registerSessionCommands } from "./ui/sessionCommands";
 import { SessionTreeProvider, listSessions } from "./ui/sessionView";
 import { StatusBar } from "./ui/statusBar";
-import { pickModel, pickPermissionMode } from "./ui/pickers";
+import { pickAgentMode, pickModel, pickPermissionMode } from "./ui/pickers";
 import { defineHeadlessTask } from "./ui/headless";
 import { registerTasteCommands } from "./taste/commands";
 import {
@@ -75,6 +75,43 @@ async function pushCurrentContext(chatProvider: ChatViewProvider): Promise<void>
   } catch (err) {
     Logger.warn("Context push failed:", err);
   }
+}
+
+function dispatchLoopReports(chatProvider: ChatViewProvider): void {
+  chatProvider.dispatchEvent({
+    jsonrpc: "2.0",
+    method: "webview/dispatchEvent",
+    params: {
+      type: "LoopReports",
+      payload: {
+        reports: listLoopReports().map((report) => ({ label: report.label, path: report.path })),
+      },
+    },
+  });
+}
+
+function dispatchMcpStatus(chatProvider: ChatViewProvider): void {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const servers: Array<{ name: string; command: string }> = [];
+  if (workspaceRoot) {
+    const mcpConfigPath = path.join(workspaceRoot, "mcp.json");
+    if (fs.existsSync(mcpConfigPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(mcpConfigPath, "utf8")) as { mcpServers?: Record<string, { command?: string; args?: string[] }> };
+        for (const [name, config] of Object.entries(parsed.mcpServers ?? {})) {
+          const command = [config.command ?? "", ...(config.args ?? [])].join(" ").trim();
+          servers.push({ name, command });
+        }
+      } catch (err) {
+        Logger.warn("Failed to read mcp.json:", err);
+      }
+    }
+  }
+  chatProvider.dispatchEvent({
+    jsonrpc: "2.0",
+    method: "webview/dispatchEvent",
+    params: { type: "McpStatus", payload: { servers } },
+  });
 }
 
 async function ensureIntegrationServices(chatProvider: ChatViewProvider): Promise<void> {
@@ -286,12 +323,28 @@ async function handleWebviewAction(
       vscode.commands.executeCommand("cmd-lite.loop");
       break;
     }
+    case "list-mcp": {
+      dispatchMcpStatus(chatProvider);
+      break;
+    }
     case "stop-loop": {
       vscode.commands.executeCommand("cmd-lite.loop.stop");
       break;
     }
     case "open-loop-report": {
       vscode.commands.executeCommand("cmd-lite.loop.openReport");
+      break;
+    }
+    case "open-loop-report-path": {
+      const reportPath = msg.payload?.reportPath as string | undefined;
+      if (!reportPath || !fs.existsSync(reportPath)) break;
+      lastLoopReportPath = reportPath;
+      const doc = await vscode.workspace.openTextDocument(reportPath);
+      await vscode.window.showTextDocument(doc, { preview: false });
+      break;
+    }
+    case "generate-mcp-config": {
+      await vscode.commands.executeCommand("cmd-lite.generateMcpConfig");
       break;
     }
   }
@@ -770,6 +823,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("cmd-lite.permission.pick", () =>
       pickPermissionMode(),
     ),
+    vscode.commands.registerCommand("cmd-lite.agentMode.pick", async () => {
+      const selected = await pickAgentMode();
+      if (selected) {
+        chatProvider.dispatchEvent({
+          jsonrpc: "2.0",
+          method: "webview/dispatchEvent",
+          params: { type: "AgentModeChanged", payload: { agentMode: selected } },
+        });
+      }
+    }),
     vscode.commands.registerCommand("cmd-lite.diff.show", (output: string) => {
       const diff = extractFirstDiffFile(output);
       if (diff) {
@@ -942,6 +1005,7 @@ export function activate(context: vscode.ExtensionContext): void {
           method: "webview/dispatchEvent",
           params: { type: "LoopFinished", payload: { status: result.status, reportPath: lastLoopReportPath } },
         });
+        dispatchLoopReports(chatProvider);
 
         Logger.clear();
         Logger.info(`# Command Code Loop: ${result.status}`);
@@ -986,6 +1050,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("cmd-lite.generateMcpConfig", async () => {
       await generateMcpConfig();
+      dispatchMcpStatus(chatProvider);
     }),
   );
 

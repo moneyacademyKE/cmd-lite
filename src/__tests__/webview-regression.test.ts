@@ -59,9 +59,9 @@ describe("webview visual parity regression prevention", () => {
 
   // ── Action Bar ──
   describe("action bar parity", () => {
-    it("has 9 action buttons", () => {
+    it("has 10 action buttons", () => {
       const matches = mainSrc.match(/class="action-btn"/g);
-      expect(matches?.length).toBe(9);
+      expect(matches?.length).toBe(10);
     });
 
     it("has START button", () => expect(mainSrc).toContain("START"));
@@ -69,6 +69,7 @@ describe("webview visual parity regression prevention", () => {
     it("has SESSIONS button", () => expect(mainSrc).toContain("SESSIONS"));
     it("has AGENTS button", () => expect(mainSrc).toContain("AGENTS"));
     it("has LOOPS button", () => expect(mainSrc).toContain("LOOPS"));
+    it("has MCP button", () => expect(mainSrc).toContain("MCP"));
     it("has CTX button", () => expect(mainSrc).toContain("CTX"));
     it("has MODEL button", () => expect(mainSrc).toContain("MODEL"));
     it("has PERM button", () => expect(mainSrc).toContain("PERM"));
@@ -231,6 +232,11 @@ describe("webview visual parity regression prevention", () => {
       expect(mainSrc).toContain("renderLoopPanel");
     });
 
+    it("handles /mcp locally", () => {
+      expect(mainSrc).toContain("'/mcp'");
+      expect(mainSrc).toContain("renderMcpPanel");
+    });
+
     it("routes unknown slash commands to CLI", () => {
       expect(mainSrc).toContain("cliSlashMsg");
       // Should NOT have "Unknown command" error text
@@ -298,6 +304,11 @@ describe("webview visual parity regression prevention", () => {
       expect(mainSrc).toContain('id="loop-list"');
       expect(css).toContain(".loop-summary");
       expect(css).toContain(".loop-iteration");
+    });
+
+    it("has mcp panel", () => {
+      expect(mainSrc).toContain('id="mcp-panel"');
+      expect(mainSrc).toContain('id="mcp-list"');
     });
 
     it("has toggleable context sidebar", () => {

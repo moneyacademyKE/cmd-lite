@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.7
+
+- **Agent Mode Switching**: Added `code`, `plan`, `ask`, `debug`, and `review` agent modes with a quick picker and footer visibility.
+- **MCP Status Panel**: Added an `MCP` webview panel that surfaces configured MCP servers from workspace `mcp.json` and refreshes after config generation.
+- **Loop Report History UX**: Added report browsing from both the command palette and the Loops panel.
+
 ## 0.5.6
 
 - **Precompiled CLI Safety & Native Binary Precedence**: CMD Lite now prefers precompiled `cmd` / `command-code` binaries and ignores stale local Node package entrypoints such as `dist/index.mjs`, preventing Electron helper trace-trap crashes in editors like Antigravity.

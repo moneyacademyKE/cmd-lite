@@ -3,7 +3,9 @@ import { listModels } from "../cli/commands";
 import type { PermissionMode } from "../cli/types";
 import { getActiveCwd } from "../config";
 import {
+  getParticipantAgentMode,
   setParticipantModel,
+  setParticipantAgentMode,
   setParticipantPermissionMode,
 } from "../chat/participant";
 
@@ -56,6 +58,27 @@ export async function pickPermissionMode(): Promise<PermissionMode | undefined> 
   if (picked) {
     setParticipantPermissionMode(picked.mode);
     vscode.window.showInformationMessage(`Permission mode: ${picked.label}`);
+  }
+  return picked?.mode;
+}
+
+export async function pickAgentMode(): Promise<"code" | "plan" | "ask" | "debug" | "review" | undefined> {
+  const current = getParticipantAgentMode();
+  const options = [
+    { label: "Code", mode: "code", description: current === "code" ? "Current" : "Implement and edit code." },
+    { label: "Plan", mode: "plan", description: current === "plan" ? "Current" : "Design without editing first." },
+    { label: "Ask", mode: "ask", description: current === "ask" ? "Current" : "Answer questions without changing files." },
+    { label: "Debug", mode: "debug", description: current === "debug" ? "Current" : "Troubleshoot, reproduce, and verify." },
+    { label: "Review", mode: "review", description: current === "review" ? "Current" : "Inspect risks and regressions first." },
+  ] as const;
+
+  const picked = await vscode.window.showQuickPick(options, {
+    title: "Pick agent mode",
+    placeHolder: "Choose how Command Code should operate by default",
+  });
+  if (picked) {
+    setParticipantAgentMode(picked.mode);
+    vscode.window.showInformationMessage(`Agent mode: ${picked.label}`);
   }
   return picked?.mode;
 }

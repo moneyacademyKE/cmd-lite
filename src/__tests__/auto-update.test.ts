@@ -72,17 +72,17 @@ vi.mock("node:child_process", () => {
     emitter.stderr = new EventEmitter();
     emitter.kill = vi.fn();
 
-    setTimeout(() => {
-      if (cmd === "tar") {
-        const dest = args[args.length - 1];
-        fs.mkdirSync(dest, { recursive: true });
-        fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.40.0");
-        emitter.emit("close", 0);
-        return;
-      }
+    if (cmd === "tar") {
+      const dest = args[args.length - 1];
+      fs.mkdirSync(dest, { recursive: true });
+      fs.writeFileSync(path.join(dest, "command-code"), "#!/bin/sh\necho 0.40.0");
+      queueMicrotask(() => emitter.emit("close", 0));
+      return emitter;
+    }
+    queueMicrotask(() => {
       emitter.stdout.emit("data", Buffer.from("0.40.0\n"));
       emitter.emit("close", 0);
-    }, 0);
+    });
 
     return emitter;
   });

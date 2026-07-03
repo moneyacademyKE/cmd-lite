@@ -88,7 +88,7 @@ cmd --version
 You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/cmd-lite/releases) page. Install it directly via your terminal:
 
 ```bash
-code --install-extension cmd-lite-0.5.6.vsix
+code --install-extension cmd-lite-0.5.7.vsix
 ```
 
 ---
@@ -123,8 +123,8 @@ We support dual-registry publishing to the Visual Studio Marketplace and the Ope
    - `OVSX_PAT`: Open VSX registry Access Token.
 2. Push a release tag matching your version:
    ```bash
-   git tag v0.5.6
-   git push origin v0.5.6
+   git tag v0.5.7
+   git push origin v0.5.7
    ```
 3. GitHub Actions will automatically validate, compile, package, and deploy the single VSIX artifact to both registries.
 
@@ -162,6 +162,22 @@ Supporting commands and UI:
 * `LOOPS` action-bar panel with timeline and status
 
 Loop reports are written to `~/.commandcode/loops/` as JSON files.
+
+### Agent Modes
+
+Use **Command Code: Pick Agent Mode** to switch the default behavior for prompts and chat runs:
+
+* `code` - implement and edit code
+* `plan` - design before editing
+* `ask` - answer without modifying files
+* `debug` - troubleshoot and verify
+* `review` - inspect risks, regressions, and missing tests
+
+The current agent mode is reflected in the footer alongside the permission mode.
+
+### MCP Status
+
+Use the `MCP` panel in the webview to inspect the currently configured MCP servers from the workspace `mcp.json`. The panel refreshes after **Command Code: Generate MCP Config**.
 
 ---
 

@@ -3,7 +3,7 @@
   "name": "cmd-lite",
   "displayName": "CMD Lite",
   "description": "A coding agent with taste. Wrap the Command Code (`cmd`) CLI as a native VS Code experience.",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "publisher": "moneyacademyke",
   "license": "MIT",
   "repository": {
@@ -43,6 +43,7 @@
     "onCommand:cmd-lite.loop.stop",
     "onCommand:cmd-lite.loop.openReport",
     "onCommand:cmd-lite.loop.listReports",
+    "onCommand:cmd-lite.agentMode.pick",
     "onCommand:cmd-lite.status",
     "onCommand:cmd-lite.login",
     "onCommand:cmd-lite.update",
@@ -153,6 +154,11 @@
       {
         "command": "cmd-lite.permission.pick",
         "title": "Pick Permission Mode",
+        "category": "Command Code"
+      },
+      {
+        "command": "cmd-lite.agentMode.pick",
+        "title": "Pick Agent Mode",
         "category": "Command Code"
       },
       {

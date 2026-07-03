@@ -7,12 +7,14 @@ export interface ParticipantState {
   permissionMode: "standard" | "plan" | "auto-accept";
   model: string | undefined;
   planMode: boolean;
+  agentMode: "code" | "plan" | "ask" | "debug" | "review";
 }
 
 const DEFAULT_STATE: ParticipantState = {
   permissionMode: "standard",
   model: undefined,
   planMode: false,
+  agentMode: "code",
 };
 
 function getStorePath(): string {

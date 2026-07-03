@@ -32,6 +32,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | SESSIONS | ☰ | Show session list |
 | AGENTS | ⚑ | Show agents board |
 | LOOPS | ⟳ | Show loop timeline |
+| MCP | ⚙ | Show MCP server status |
 | CTX | ☰ | Toggle context sidebar |
 | MODEL | ⚙ | Pick model |
 | PERM | ⚙ | Pick permission |
@@ -69,7 +70,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | Item | Content |
 |------|---------|
 | MODEL | `MODEL // deepseek-v4-pro` |
-| MODE | `MODE // STANDARD` |
+| MODE | `MODE // CODE · STANDARD` |
 | Tokens | `T // P 0 / C 0 / 0` |
 | Session | `SESSION // a1b2c3d4` |
 | Turn | `TURN // 0` |
@@ -106,6 +107,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | `/sessions` | Local (show panel) | `handles /sessions locally` |
 | `/agents` | Local (show panel) | `handles /agents locally` |
 | `/loops` | Local (show panel) | `handles /loops locally` |
+| `/mcp` | Local (show panel) | `handles /mcp locally` |
 | All others | Routed to CLI | `routes unknown slash commands` |
 
 ### Panels
@@ -116,6 +118,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | Sessions | Recent session list | `has sessions panel` |
 | Agents | Kanban board (planning, execution, verification) | `has agents panel` |
 | Loops | Bounded loop summary + iteration timeline | `has loops panel` |
+| MCP | Configured MCP server status list | `has mcp panel` |
 | Status | Terminal chrome with ANSI-colored output | `has status panel` |
 | Context sidebar | Git, files, diagnostics | `has toggleable context sidebar` |
 

@@ -62,7 +62,7 @@ graph TD
 *   **Location**: [src/webview/main.ts](file:///Users/moe/Desktop/cmd/src/webview/main.ts), [src/webview/style.css](file:///Users/moe/Desktop/cmd/src/webview/style.css)
 *   **Rules**:
     *   **Zero Authoritative State**: Do not store state in JS variables. If state changes, serialize it to `vscode.setState()` and redraw the DOM projection based on events.
-    *   **CSS-Driven Panel Routing**: Switch panels (Chat, Sessions, Status, Agents, Loops) by toggling the `panel-active` class. Reject JS routers.
+    *   **CSS-Driven Panel Routing**: Switch panels (Chat, Sessions, Status, Agents, Loops, MCP) by toggling the `panel-active` class. Reject JS routers.
     *   **Theme Integration**: Bind custom scrollbars to native VS Code CSS variables:
         ```css
         ::-webkit-scrollbar-thumb {
@@ -97,6 +97,13 @@ graph TD
     *   **Bounded, Not Infinite**: Every loop must have an iteration limit, retry limit, cancellation path, and explicit terminal states.
     *   **Thin Glass Projection**: The webview only renders loop state (`running`, `completed`, `failed`, `cancelled`, `exhausted`) and iteration summaries; it does not decide loop control.
     *   **Durable Reports**: Persist loop artifacts as JSON under `~/.commandcode/loops/` for later inspection.
+
+### 6. Agent Modes & MCP Discovery
+*   **Location**: [src/chat/participant.ts](file:///Users/moe/Desktop/cmd/src/chat/participant.ts), [src/ui/pickers.ts](file:///Users/moe/Desktop/cmd/src/ui/pickers.ts), [src/webview/main.ts](file:///Users/moe/Desktop/cmd/src/webview/main.ts)
+*   **Rules**:
+    *   **Mode Is Prompt Shaping, Not a New Runtime**: Agent modes (`code`, `plan`, `ask`, `debug`, `review`) should bias prompts and UI, not fork the architecture into separate engines.
+    *   **MCP Discovery Is Read-Only by Default**: Surface configured MCP servers from `mcp.json` and built-in extension tooling without automatically mutating workspace config.
+    *   **Thin Glass Inspection**: The webview may show MCP server status and mode state, but the extension host remains the authority for configuration writes and command execution.
 
 ---
 

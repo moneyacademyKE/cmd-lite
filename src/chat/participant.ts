@@ -134,7 +134,7 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
 
 function readState(): ParticipantState {
   const stored = session.currentSessionState;
-  return stored ?? { permissionMode: "standard", model: undefined, planMode: false };
+  return stored ?? { permissionMode: "standard", model: undefined, planMode: false, agentMode: "code" };
 }
 
 function updateState(next: ParticipantState): void {
@@ -157,15 +157,27 @@ function loadPersistedState(): void {
 export function setParticipantPermissionMode(mode: PermissionMode): void {
   const state = readState();
   session.currentSessionState = { ...state, permissionMode: mode, planMode: mode === "plan" };
+  persistState();
 }
 
 export function setParticipantModel(model: string | undefined): void {
   const state = readState();
   session.currentSessionState = { ...state, model };
+  persistState();
 }
 
 export function getParticipantModel(): string | undefined {
   return readState().model;
+}
+
+export function setParticipantAgentMode(agentMode: ParticipantState["agentMode"]): void {
+  const state = readState();
+  session.currentSessionState = { ...state, agentMode, planMode: agentMode === "plan" ? true : state.planMode };
+  persistState();
+}
+
+export function getParticipantAgentMode(): ParticipantState["agentMode"] {
+  return readState().agentMode;
 }
 
 function buildPrompt(
@@ -188,6 +200,15 @@ function buildPrompt(
   }
   if (state.planMode && command !== "plan") {
     prefix.push("Operate in plan mode: do not modify files, only propose.");
+  }
+  if (state.agentMode === "ask") {
+    prefix.push("Answer questions about the codebase without modifying files.");
+  }
+  if (state.agentMode === "debug") {
+    prefix.push("Prioritize debugging, root cause analysis, reproduction, and verification.");
+  }
+  if (state.agentMode === "review") {
+    prefix.push("Operate as a reviewer: inspect risks, regressions, and missing tests before proposing changes.");
   }
   const userText = request.prompt.trim();
   const refs = formatReferences(request.references);
