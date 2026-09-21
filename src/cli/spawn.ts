@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { resolveCliPath } from "./resolve";
+import { zeroDataRetentionEnabled } from "../config";
 import type { CliResult, CliRunOptions } from "./types";
 
 export async function runCli(
@@ -12,7 +13,10 @@ export async function runCli(
   const execArgs = isJs ? [cliPath, ...args] : args;
 
   const cwd = options.cwd ?? process.cwd();
-  const env = { ...process.env, ...(options.env ?? {}) };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...(options.env ?? {}) };
+  if (zeroDataRetentionEnabled()) {
+    env.CMD_ZDR = "1";
+  }
   const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
 
   const startedAt = Date.now();

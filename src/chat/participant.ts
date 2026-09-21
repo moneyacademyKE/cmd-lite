@@ -9,6 +9,8 @@ import { hasCodeProposal, StreamingDiffManager, setCurrentDiffManager } from "..
 
 import { readSessionState, writeSessionState, type ParticipantState } from "../cli/store";
 import { SessionManager } from "../sessionManager";
+import { collectDiagnostics } from "../context/diagnostics";
+import type { DiagnosticEntry } from "../context/protocol";
 
 const session = SessionManager.getInstance();
 
@@ -121,6 +123,20 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
           { prompt: "Learn more taste from other repositories", label: "Learn more" },
         ];
       }
+      if (metadata?.command === "design") {
+        return [
+          { prompt: "Enhance visual animations and contrast", label: "Polish animations" },
+          { prompt: "Audit accessibility and semantic HTML", label: "Audit a11y" },
+          { prompt: "Apply responsive mobile breakpoints", label: "Mobile layouts" },
+        ];
+      }
+      if (metadata?.command === "fix") {
+        return [
+          { prompt: "Verify fixes by running build", label: "Run build" },
+          { prompt: "Check for any remaining warnings", label: "Check warnings" },
+          { prompt: "Run the test suite", label: "Run tests" },
+        ];
+      }
       return [
         { prompt: "Show me the taste learned so far", label: "Show taste" },
         { prompt: "Plan the next change", label: "Plan next" },
@@ -198,6 +214,12 @@ function buildPrompt(
   if (command === "learn") {
     prefix.push("Run `cmd taste learn .` to learn taste from the current repository, then summarize what was learned.");
   }
+  if (command === "design") {
+    prefix.push('Act as an expert frontend UI/UX designer. Create a "Thin Glass", visually stunning and robust frontend design using modern web design best practices (vibrant colors, glassmorphism, dynamic micro-animations, semantic HTML). Prioritize visual excellence.');
+  }
+  if (command === "fix") {
+    prefix.push(formatFixPrompt(request.prompt.trim()));
+  }
   if (state.planMode && command !== "plan") {
     prefix.push("Operate in plan mode: do not modify files, only propose.");
   }
@@ -214,8 +236,60 @@ function buildPrompt(
   const refs = formatReferences(request.references);
   const pieces = [...prefix];
   if (refs) pieces.push(refs);
-  if (userText) pieces.push(userText);
+  if (userText && command !== "fix") pieces.push(userText);
   return pieces.join("\n\n").trim();
+}
+
+function formatFixPrompt(extraInstruction: string): string {
+  const EXCLUDED_PATTERNS = [/node_modules/i, /\.git/i, /dist/i, /build/i, /\.svelte-kit/i, /\.next/i, /\.nuxt/i];
+  const fileDiags = collectDiagnostics();
+  const filteredDiags = fileDiags
+    .filter(fd => !EXCLUDED_PATTERNS.some(pattern => pattern.test(fd.file)))
+    .map(fd => ({
+      ...fd,
+      diagnostics: fd.diagnostics.filter(d => d.severity === "error" || d.severity === "warning"),
+    }))
+    .filter(fd => fd.diagnostics.length > 0);
+
+  const allDiagnostics: { file: string; relativePath: string; diag: DiagnosticEntry }[] = [];
+  for (const fd of filteredDiags) {
+    for (const d of fd.diagnostics) {
+      allDiagnostics.push({ file: fd.file, relativePath: fd.relativePath, diag: d });
+    }
+  }
+
+  allDiagnostics.sort((a, b) => (a.diag.severity === "error" ? 0 : 1) - (b.diag.severity === "error" ? 0 : 1));
+  const MAX_DIAGNOSTICS = 30;
+  const cappedDiagnostics = allDiagnostics.slice(0, MAX_DIAGNOSTICS);
+
+  if (cappedDiagnostics.length === 0) {
+    return extraInstruction
+      ? `No compilation errors or warnings found in the active workspace. Instruction: ${extraInstruction}`
+      : "No compilation errors or warnings found in the active workspace.";
+  }
+
+  let formatted = "Please resolve the compilation diagnostics (errors and warnings) in the active workspace.";
+  if (extraInstruction) formatted += `\nAdditional instruction: "${extraInstruction}"`;
+  formatted += "\n\nDiagnostics found:";
+
+  const fileGroups: Record<string, { relativePath: string; diagnostics: DiagnosticEntry[] }> = {};
+  for (const item of cappedDiagnostics) {
+    if (!fileGroups[item.file]) fileGroups[item.file] = { relativePath: item.relativePath, diagnostics: [] };
+    fileGroups[item.file].diagnostics.push(item.diag);
+  }
+
+  for (const [file, group] of Object.entries(fileGroups)) {
+    formatted += `\n\nFile: ${group.relativePath || file}`;
+    for (const d of group.diagnostics) {
+      const severity = d.severity.toUpperCase();
+      formatted += `\n- Line ${d.range.startLine}, Col ${d.range.startCol}: [${severity}] ${d.message}${d.source ? ` [${d.source}]` : ""}${d.code ? ` (${d.code})` : ""}`;
+    }
+  }
+
+  if (allDiagnostics.length > MAX_DIAGNOSTICS) {
+    formatted += `\n\n*Note: Showing first ${MAX_DIAGNOSTICS} out of ${allDiagnostics.length} diagnostics in the workspace.*`;
+  }
+  return formatted;
 }
 
 function formatReferences(refs: readonly vscode.ChatPromptReference[]): string {

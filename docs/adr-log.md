@@ -87,3 +87,11 @@ This document compiles the chronological history of key design choices and archi
 *   **Context**: The extension's user-facing brand name "CMD Lite" was being rebranded to "CommandCode+" to better reflect product positioning. The extension's technical identity (`cmd-lite.*` command IDs, view IDs, configuration keys) is deeply wired into the VS Code API surface, user `settings.json` files, and keybinding configurations.
 *   **Decision**: Decomplect brand identity from technical identity. Only user-facing display text (displayName, command titles, descriptions, error messages, documentation) was changed. All VS Code API identifiers (`cmd-lite.*`) were preserved. Upstream CLI references (`Command Code`, `.commandcode/`, `commandcode.ai`) were left untouched as they are properties of the upstream product.
 *   **Consequence**: Zero breaking changes for existing users. Settings, keybindings, and workspace configs continue to work without migration. The `"name"` field in `package.json` changed from `cmd-lite` to `commandcode-plus` for marketplace identity.
+
+### ADR-017: Webview & Extension Host Decomposition and Test Worktree Isolation (v0.5.8)
+*   **Context**: Monolithic source files (`src/extension.ts` at 1,138 LOC and `src/webview/main.ts` at 2,496 LOC) violated the mandatory `<500 LOC` constraint and complected UI event handling, input state, DOM rendering, and IPC lifecycle. Additionally, stale test files in `.kilo/worktrees/` caused false-positive Vitest test suite failures due to race conditions on shared temporary files.
+*   **Decision**: 
+    1. Fully decomposed `src/webview/` into 9 focused modules (`state`, `scroll`, `highlight`, `toast`, `footer`, `input`, `messages`, `panels`, `layout`), bringing `main.ts` down to 463 LOC.
+    2. Decomposed `src/extension.ts` into specialized handlers (`src/commands/registration.ts`, `src/handlers/chatInput.ts`, `src/handlers/webviewActions.ts`, `src/lifecycle/integration.ts`), reducing `extension.ts` to 303 LOC.
+    3. Introduced root `vitest.config.ts` with explicit test inclusion (`src/**/*.test.ts`) and worktree exclusion (`**/.kilo/**`), ensuring 100% test isolation and determinism.
+*   **Consequence**: High cohesion, low coupling, zero files exceeding 500 LOC, clean compilation, and a 100% green test suite (22 test files, 221 tests passing).

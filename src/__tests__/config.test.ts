@@ -61,4 +61,16 @@ describe("config getEffectiveModel tests", () => {
 
     expect(getEffectiveModel()).toBeUndefined();
   });
+
+  it("should return zeroDataRetention value from configuration", async () => {
+    const { zeroDataRetentionEnabled } = await import("../config");
+    vi.spyOn(vscode.workspace, "getConfiguration").mockReturnValue({
+      get: vi.fn((key, defaultValue) => {
+        if (key === "zeroDataRetention") return true;
+        return defaultValue;
+      }),
+    } as unknown as vscode.WorkspaceConfiguration);
+
+    expect(zeroDataRetentionEnabled()).toBe(true);
+  });
 });

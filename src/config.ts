@@ -37,6 +37,12 @@ export function shellToolEnabled(): boolean {
     .get<boolean>("allowShellTool", false);
 }
 
+export function zeroDataRetentionEnabled(): boolean {
+  return vscode.workspace
+    .getConfiguration("cmd-lite")
+    .get<boolean>("zeroDataRetention", false);
+}
+
 export function getActiveCwd(): string {
   const activeEditor = vscode.window.activeTextEditor;
   if (activeEditor) {

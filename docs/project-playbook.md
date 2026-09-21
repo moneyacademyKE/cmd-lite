@@ -138,21 +138,32 @@ We enforce standard workspace scripts using **Babashka (clojure script)** rather
 *   **Rules**: Pre-commit hooks run automated unit testing, formatting check, and typescript compilation verification using `pnpm` before allowing commits.
 
 ### 3. Pre-flight Publishing Verification
-*   **Path**: [scripts/publish.clj](file:///Users/moe/Desktop/cmd/scripts/publish.clj)
+*   **Path**: [scripts/publish.clj](file:///Users/moe/Desktop/commandcode/scripts/publish.clj)
 *   **Rules**: Validates that the git tree is clean, builds the codebase, runs linter and unit tests, compiles the package, and optionally publishes the same single VSIX package to both VS Code Marketplace and Open VSX Registry, preventing duplicate build variance.
+
+### 4. Strict File Sizing & Modularization
+*   **Rule**: All source files must strictly remain `<500 LOC`.
+*   **Architecture**:
+    *   `src/extension.ts` is a slim entry point delegating to `src/commands/registration.ts`, `src/handlers/chatInput.ts`, `src/handlers/webviewActions.ts`, and `src/lifecycle/integration.ts`.
+    *   `src/webview/main.ts` coordinates focused modules (`state.ts`, `scroll.ts`, `highlight.ts`, `toast.ts`, `footer.ts`, `input.ts`, `messages.ts`, `panels.ts`, `layout.ts`).
 
 ---
 
 ## 🔬 Quality Verification Checklist
 
 ### 1. Automated Tests
-*   Run unit tests inside [src/__tests__/](file:///Users/moe/Desktop/cmd/src/__tests__/) using Vitest:
+*   Run unit tests inside [src/__tests__/](file:///Users/moe/Desktop/commandcode/src/__tests__/) using Vitest:
     ```bash
     pnpm test
     ```
+    *Note: `vitest.config.ts` ensures tests are isolated to `src/` and excludes `.kilo/` worktrees.*
 *   Run compilation/types check:
     ```bash
     pnpm typecheck
+    ```
+*   Run linter:
+    ```bash
+    pnpm run lint
     ```
 
 ### 2. CI/CD Pipeline Verification & Gotchas
@@ -161,7 +172,11 @@ We enforce standard workspace scripts using **Babashka (clojure script)** rather
 *   **Preinstall Check Hook dependencies**: Because package installation runs validation scripts utilizing Babashka, CI runners must install the Babashka toolchain before calling `pnpm install`.
 *   **Build Order Alignment**: Automated tests (such as webview regression tests) assert assets generated in compilation (e.g. `dist/webview/style.css`). Always execute `pnpm run build` prior to running the test suite in CI to prevent `ENOENT` crashes.
 
-### 3. Manual Visual Tests
+### 3. Manual & Visual Tests
+*   Run the Babashka visual regression suite:
+    ```bash
+    bb scripts/visual-test.clj
+    ```
 *   Verify focus behaviors: Arrow keys and PageUp/PageDown must scroll the chat window when focused inside inputs and on background panel zones.
 *   Verify theme colors: Contrast must adapt dynamically when changing workbench themes.
 *   Verify nested scrollbars: Confirm nested scrollbars do not pass scroll events to the outer parent layout when boundary is reached.

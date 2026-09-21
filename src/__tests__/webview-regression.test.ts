@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(__dirname, "..", "..");
 
 describe("webview visual parity regression prevention", () => {
   const css = readFileSync(join(root, "dist", "webview", "style.css"), "utf-8");
-  const mainSrc = readFileSync(join(root, "src", "webview", "main.ts"), "utf-8");
+  const webviewDir = join(root, "src", "webview");
+  const mainSrc = readdirSync(webviewDir)
+    .filter((f) => f.endsWith(".ts"))
+    .map((f) => readFileSync(join(webviewDir, f), "utf-8"))
+    .join("\n");
 
   // ── Build Artifacts Exist ──
   it("build outputs exist", () => {

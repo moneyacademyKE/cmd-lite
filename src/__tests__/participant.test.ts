@@ -41,4 +41,44 @@ describe("participant tests", () => {
       expect.any(Function)
     );
   });
+
+  it("should provide relevant followups for design and fix commands", () => {
+    let capturedParticipant: { iconPath: string; followupProvider?: vscode.ChatFollowupProvider } | undefined;
+    vi.mocked(vscode.chat.createChatParticipant).mockImplementation((_id, _handler) => {
+      capturedParticipant = {
+        iconPath: "",
+        followupProvider: undefined,
+      };
+      return capturedParticipant as unknown as vscode.ChatParticipant;
+    });
+
+    registerChatParticipant(mockContext);
+    expect(capturedParticipant).toBeDefined();
+    const provider = capturedParticipant?.followupProvider;
+    expect(provider).toBeDefined();
+
+    const designFollowups = provider?.provideFollowups(
+      { metadata: { command: "design" } } as vscode.ChatResult,
+      {} as unknown as vscode.ChatContext,
+      {} as unknown as vscode.CancellationToken
+    );
+    expect(designFollowups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Polish animations" }),
+        expect.objectContaining({ label: "Audit a11y" }),
+      ])
+    );
+
+    const fixFollowups = provider?.provideFollowups(
+      { metadata: { command: "fix" } } as vscode.ChatResult,
+      {} as unknown as vscode.ChatContext,
+      {} as unknown as vscode.CancellationToken
+    );
+    expect(fixFollowups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Run build" }),
+        expect.objectContaining({ label: "Run tests" }),
+      ])
+    );
+  });
 });
