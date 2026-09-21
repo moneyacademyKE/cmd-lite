@@ -7,6 +7,15 @@ import * as https from "node:https";
 let cached: string | undefined;
 let localCliPathOverride: string | undefined;
 
+export function getDefaultCmd(): string {
+  return process.platform === "win32" ? "cmdc" : "cmd";
+}
+
+export function getDefaultCmdExe(): string {
+  return process.platform === "win32" ? "cmdc.exe" : "cmd";
+}
+
+
 export function setLocalCliPathOverride(filePath: string | undefined): void {
   localCliPathOverride = filePath;
 }
@@ -26,27 +35,28 @@ function findNativeCliPath(installDir: string): string | undefined {
   const executableName = process.platform === "win32" ? "command-code.exe" : "command-code";
   const candidates = [
     path.join(installDir, executableName),
-    path.join(installDir, process.platform === "win32" ? "cmd.exe" : "cmd"),
+    path.join(installDir, getDefaultCmdExe()),
     path.join(installDir, "dist", executableName),
-    path.join(installDir, "dist", process.platform === "win32" ? "cmd.exe" : "cmd"),
+    path.join(installDir, "dist", getDefaultCmdExe()),
   ];
 
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
 export function resolveCliPath(): string {
+  const defaultCmd = getDefaultCmd();
   const configured = vscode.workspace
     .getConfiguration("cmd-lite")
-    .get<string>("cliPath", "cmd")
+    .get<string>("cliPath", defaultCmd)
     .trim();
-  if (configured && configured !== "cmd" && configured !== "command-code") {
+  if (configured && configured !== "cmd" && configured !== "cmdc" && configured !== "command-code") {
     return configured;
   }
   if (localCliPathOverride) {
     return localCliPathOverride;
   }
   if (cached) return cached;
-  cached = configured || "cmd";
+  cached = configured || defaultCmd;
   return cached;
 }
 
@@ -55,7 +65,7 @@ export function clearCliPathCache(): void {
 }
 
 export function validateCliPath(cliPath: string): { valid: boolean; message?: string } {
-  if (cliPath === "cmd" || cliPath === "command-code") {
+  if (cliPath === "cmd" || cliPath === "cmdc" || cliPath === "command-code") {
     return { valid: true };
   }
   if (fs.existsSync(cliPath)) {
@@ -72,7 +82,7 @@ export function validateCliPath(cliPath: string): { valid: boolean; message?: st
       }
     }
   }
-  return { valid: false, message: `CLI binary not found at "${cliPath}". Install globally or let CMD Lite set up local version.` };
+  return { valid: false, message: `CLI binary not found at "${cliPath}". Install globally or let CommandCode+ set up local version.` };
 }
 
 export async function checkCliVersion(cliPath: string): Promise<{ compatible: boolean; version?: string; message?: string }> {

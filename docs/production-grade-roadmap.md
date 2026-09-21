@@ -1,6 +1,6 @@
-# Roadmap to Production-Grade: CMD Lite VS Code Extension
+# Roadmap to Production-Grade: CommandCode+ VS Code Extension
 
-This document outlines the strategic engineering roadmap to mature the **CMD Lite** extension from a highly functional wrapper to an enterprise-level, production-grade tool. Adhering to Rich Hickey's design philosophies, we focus on **decomplecting lifecycle, security, performance, and cross-platform portability**.
+This document outlines the strategic engineering roadmap to mature the **CommandCode+** extension from a highly functional wrapper to an enterprise-level, production-grade tool. Adhering to Rich Hickey's design philosophies, we focus on **decomplecting lifecycle, security, performance, and cross-platform portability**.
 
 ---
 
@@ -70,7 +70,7 @@ The proposed production-grade tasks are classified by utility and implementation
 *   Run vulnerability scan workflows (e.g. `npm audit`, `snyk`) on all third-party dependencies as part of the git pre-commit hook.
 
 ### 2. Startup & Performance Benchmark Checks
-*   Use VS Code's developer command: `Developer: Startup Performance` to benchmark CMD Lite loading time.
+*   Use VS Code's developer command: `Developer: Startup Performance` to benchmark CommandCode+ loading time.
 *   Verify that activation time remains **under 50ms** during startup sequences.
 
 ---

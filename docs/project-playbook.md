@@ -1,12 +1,12 @@
-# Architectural Playbook: CMD Lite
+# Architectural Playbook: CommandCode+
 
-This document serves as the authoritative, comprehensive **Architectural Playbook** for the **CMD Lite** project. It outlines our design philosophies, systems architecture, coding standards, and verification guidelines.
+This document serves as the authoritative, comprehensive **Architectural Playbook** for the **CommandCode+** project. It outlines our design philosophies, systems architecture, coding standards, and verification guidelines.
 
 ---
 
 ## 🧠 Core Philosophy: Rich Hickey's Simplicity
 
-CMD Lite is designed according to **Rich Hickey's Simplicity** guidelines (i.e. *decomplecting* concerns). We reject the traditional approach of building "easy" (convenient but complected) extensions that pack complex state, heavy framework lifecycles, and direct execution dependencies inside the editor process.
+CommandCode+ is designed according to **Rich Hickey's Simplicity** guidelines (i.e. *decomplecting* concerns). We reject the traditional approach of building "easy" (convenient but complected) extensions that pack complex state, heavy framework lifecycles, and direct execution dependencies inside the editor process.
 
 To maintain simplicity, we strictly categorize and manage our application components as:
 *   **Values**: Immutable facts represented as data structures (e.g. editor coordinates, current git commit hashes, file diagnostics, user taste preferences).
@@ -17,9 +17,9 @@ To maintain simplicity, we strictly categorize and manage our application compon
 
 ## 📊 Architectural Feature Set Matrix
 
-Below we contrast CMD Lite's de-complected architecture with typical heavy editor extensions (like standard Copilot/Kilo Code wrappers).
+Below we contrast CommandCode+'s de-complected architecture with typical heavy editor extensions (like standard Copilot/Kilo Code wrappers).
 
-| Domain | Typical Heavy Extension (Complected) | CMD Lite Architecture (Decomplected) | Strategic Benefits | Trade-offs |
+| Domain | Typical Heavy Extension (Complected) | CommandCode+ Architecture (Decomplected) | Strategic Benefits | Trade-offs |
 | :--- | :--- | :--- | :--- | :--- |
 | **Visual Rendering** | **Framework-Driven (React/SolidJS)**<br>Local state, component lifecycles, virtual DOM sync. | **"Thin Glass" Vanilla JS**<br>Stateless document rendering, direct DOM projection. | Zero dependency bugs, instant loading, absolute decoupling from React memory leaks. | Manual DOM projection logic and custom regex tokenizers. |
 | **Context Extraction** | **Direct Extension Host APIs**<br>Synchronous editor checks blocking LLM generation loops. | **IPC UDS Socket Server**<br>Asynchronous, newline-delimited JSON-RPC over Unix sockets. | CLI runs identically in editor, terminal, or CI/CD pipelines. | Serialization overhead; Unix socket lifecycle management. |
@@ -104,6 +104,24 @@ graph TD
     *   **Mode Is Prompt Shaping, Not a New Runtime**: Agent modes (`code`, `plan`, `ask`, `debug`, `review`) should bias prompts and UI, not fork the architecture into separate engines.
     *   **MCP Discovery Is Read-Only by Default**: Surface configured MCP servers from `mcp.json` and built-in extension tooling without automatically mutating workspace config.
     *   **Thin Glass Inspection**: The webview may show MCP server status and mode state, but the extension host remains the authority for configuration writes and command execution.
+
+### 7. Zero Data Retention (ZDR) Privacy Isolation
+*   **Location**: [src/config.ts](file:///Users/moe/Desktop/cmd/src/config.ts), [src/cli/spawn.ts](file:///Users/moe/Desktop/cmd/src/cli/spawn.ts)
+*   **Rules**:
+    *   **Subprocess Environment Boundary**: When `cmd-lite.zeroDataRetention` is true, unconditionally inject `CMD_ZDR="1"` into the child process environment map.
+    *   **Stateless Execution**: Suppress all persistent prompt caches and session logs on ZDR sessions, guaranteeing enterprise data privacy without modifying CLI core logic.
+
+### 8. Cross-Platform Binary Resolution (`cmdc`)
+*   **Location**: [src/cli/resolve.ts](file:///Users/moe/Desktop/cmd/src/cli/resolve.ts)
+*   **Rules**:
+    *   **Windows Shell Protection**: On `win32`, the default CLI binary name resolves to `cmdc` (or `cmdc.exe`) rather than `cmd`, preventing collision with Windows' native `cmd.exe`.
+    *   **Seamless Fallback**: If a custom path is configured via `cmd-lite.cliPath`, honor it directly; otherwise employ platform-safe defaults.
+
+### 9. Automated Diagnostics Remediator (`/fix`) and UI/UX Designer (`/design`)
+*   **Location**: [src/handlers/chatInput.ts](file:///Users/moe/Desktop/cmd/src/handlers/chatInput.ts), [src/chat/participant.ts](file:///Users/moe/Desktop/cmd/src/chat/participant.ts)
+*   **Rules**:
+    *   **Bounded Diagnostic Aggregation**: `/fix` queries active workspace errors and warnings via `collectDiagnostics()`, filters out build/dependency noise (`node_modules`, `dist`, `.git`), sorts errors before warnings, and caps output at 30 items to prevent context window saturation.
+    *   **Thin Glass UI/UX Directive**: `/design` biases agent prompting toward aesthetic excellence, glassmorphism, semantic HTML, and dynamic micro-animations across both chat participants and webviews.
 
 ---
 

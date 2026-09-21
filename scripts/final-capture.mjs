@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname;
 const browser = await chromium.launch({ headless: true });
 
-// Capture the CMD Lite standalone webview
+// Capture the CommandCode+ standalone webview
 const webviewPage = await browser.newPage({ viewport: { width: 450, height: 750 } });
 await webviewPage.goto('file://' + join(ROOT, 'scripts', 'final-standalone.html'), { waitUntil: 'networkidle', timeout: 15000 });
 await webviewPage.waitForTimeout(2000);
@@ -55,7 +55,7 @@ pre { margin: 0; padding: 16px; font-family: "SF Mono", Menlo, monospace; font-s
 </head>
 <body>
 <div class="panel">
-  <div class="panel-header">CMD Lite Webview v0.3.0</div>
+  <div class="panel-header">CommandCode+ Webview v0.3.0</div>
   <div class="content">
     <iframe src="file://${join(ROOT, 'scripts', 'final-standalone.html')}"></iframe>
   </div>

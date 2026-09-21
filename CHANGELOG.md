@@ -8,7 +8,7 @@
 
 ## 0.5.6
 
-- **Precompiled CLI Safety & Native Binary Precedence**: CMD Lite now prefers precompiled `cmd` / `command-code` binaries and ignores stale local Node package entrypoints such as `dist/index.mjs`, preventing Electron helper trace-trap crashes in editors like Antigravity.
+- **Precompiled CLI Safety & Native Binary Precedence**: CommandCode+ now prefers precompiled `cmd` / `command-code` binaries and ignores stale local Node package entrypoints such as `dist/index.mjs`, preventing Electron helper trace-trap crashes in editors like Antigravity.
 - **Shell Tool Safety Gate**: Added `cmd-lite.allowShellTool` so direct shell execution from the webview and MCP terminal tools stays disabled by default and is only available for trusted workspaces or sessions.
 - **Sanitized Logging & Safer Filesystem Writes**: Centralized logger redaction now masks tokens and home paths, IPC startup logs no longer print auth tokens, and the shared permissions store now writes atomically via temp-file swap.
 - **Lazy Integration Service Startup**: Activation remains targeted and IPC/MCP services now initialize on demand when the extension actually needs CLI context, reducing eager editor startup work.
@@ -55,7 +55,7 @@
 
 ## 0.4.0
 
-- **Local CLI Dependency Isolation**: Configured CMD Lite to download and run the CLI package inside a private `globalStorageUri` cache directory (`~/.commandcode/cli/`) by default, preventing EACCES write errors and shell PATH configuration conflicts with global package installs.
+- **Local CLI Dependency Isolation**: Configured CommandCode+ to download and run the CLI package inside a private `globalStorageUri` cache directory (`~/.commandcode/cli/`) by default, preventing EACCES write errors and shell PATH configuration conflicts with global package installs.
 - **Node-Based ES Module Wrapper**: Spawns local `.mjs` entrypoint files via `process.execPath` (the embedded Node.js executable), ensuring cross-platform execution consistency across Windows, macOS, and Linux without native binaries.
 - **First-Run CLI Bootstrapping**: Implemented dynamic background dependency installers that fetch the CLI tarball from the NPM registry and unpack it on first launch if no local version is detected.
 - **Transactional Atomic Swapping Updates**: Extracts downloaded packages into a separate temporary directory and performs an atomic directory swap, preventing code execution locks or file corruption if updates are interrupted.

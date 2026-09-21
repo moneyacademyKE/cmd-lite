@@ -1,8 +1,8 @@
-# CMD Lite VS Code Extension — Gap Analysis & Implementation Guide
+# CommandCode+ VS Code Extension — Gap Analysis & Implementation Guide
 
 > [!NOTE]
-> This repository houses the unofficial, community-driven VS Code extension for [Command Code (`cmd`)](https://commandcode.ai), branded as **CMD Lite**.
-> Below is a comprehensive Gap Analysis comparing the **Official Command Code Extension** vs. **This Unofficial Extension (CMD Lite)** under the lens of Rich Hickey's Simplicity principles.
+> This repository houses the unofficial, community-driven VS Code extension for [Command Code (`cmd`)](https://commandcode.ai), branded as **CommandCode+**.
+> Below is a comprehensive Gap Analysis comparing the **Official Command Code Extension** vs. **This Unofficial Extension (CommandCode+)** under the lens of Rich Hickey's Simplicity principles.
 
 ---
 
@@ -82,7 +82,8 @@ cmd --version
 ```
 
 > [!TIP]
-> If multiple package managers installed `cmd`, check `which cmd` and configure `cmd-lite.cliPath` to the intended precompiled binary. CMD Lite intentionally ignores stale local Node entrypoints such as `dist/index.mjs`.
+> If multiple package managers installed `cmd`, check `which cmd` and configure `cmd-lite.cliPath` to the intended precompiled binary. CommandCode+ intentionally ignores stale local Node entrypoints such as `dist/index.mjs`.
+> **Windows Users**: On Windows (`win32`), the binary defaults to `cmdc` (or `cmdc.exe`) to prevent name collisions with the native `cmd.exe` shell. CommandCode+ automatically resolves `cmdc` when running on Windows.
 
 ### 2. Install the Extension VSIX
 You can download the packaged extension from our [GitHub Releases](https://github.com/moneyacademyKE/cmd-lite/releases) page. Install it directly via your terminal:
@@ -142,12 +143,24 @@ pnpm run publish
 
 ### Key Configurations (`settings.json`)
 
-* `cmd-lite.cliPath`: Custom path to your `cmd` executable (defaults to `cmd`).
-* `cmd-lite.defaultModel`: Default model override (e.g. `claude-opus-4.8`).
+* `cmd-lite.cliPath`: Custom path to your `cmd` executable (defaults to `cmd` on POSIX, `cmdc` on Windows).
+* `cmd-lite.defaultModel`: Default model override (e.g. `claude-opus-4.8`, `deepseek-v4-pro`).
 * `cmd-lite.defaultPermissionMode`: Default permission mode (`standard`, `plan`, `auto-accept`).
 * `cmd-lite.showStatusBar`: Toggle the status bar session indicator.
 * `cmd-lite.context.maxSelectionLength`: Caps the text selection context shared over IPC.
 * `cmd-lite.allowShellTool`: Enables direct shell execution tools for trusted workspaces only.
+* `cmd-lite.zeroDataRetention`: Zero Data Retention (ZDR) privacy toggle. When enabled, sets `CMD_ZDR=1` in subprocess environments to prevent prompt retention or remote telemetry logging.
+
+### Built-in Slash Commands
+
+Both the native Chat Participant (`@cmd`) and the Thin Glass Webview support first-class slash commands:
+
+* `/plan <task>`: Formulates an architectural plan without modifying workspace files.
+* `/review [target]`: Performs code reviews on active changes or specific pull requests.
+* `/taste`: Summarizes and applies project conventions from `.commandcode/taste/`.
+* `/learn`: Learns taste profile directly from the current repository.
+* `/design [prompt]`: Activates the frontend UI/UX design agent with modern aesthetics, glassmorphism, and responsive micro-animations.
+* `/fix [instruction]`: Automatically gathers compilation diagnostics (errors & warnings) from the active workspace and resolves them.
 
 ### Bounded Agent Loops
 
@@ -183,7 +196,7 @@ Use the `MCP` panel in the webview to inspect the currently configured MCP serve
 
 ### ⌨️ TUI Visual Parity & Keyboard Shortcuts
 
-CMD Lite features full parity with the `cmd` CLI TUI interface. You can perform operations mouse-free inside the webview using the following terminal shortcuts:
+CommandCode+ features full parity with the `cmd` CLI TUI interface. You can perform operations mouse-free inside the webview using the following terminal shortcuts:
 
 | Shortcut | Action Description | Webview Impact |
 | :--- | :--- | :--- |

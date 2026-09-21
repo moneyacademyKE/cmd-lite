@@ -1,6 +1,6 @@
-# CMD Lite Visual Parity Playbook
+# CommandCode+ Visual Parity Playbook
 
-> A living reference for maintaining pixel-perfect visual parity between the `cmd` CLI TUI and the CMD Lite VS Code extension webview.
+> A living reference for maintaining pixel-perfect visual parity between the `cmd` CLI TUI and the CommandCode+ VS Code extension webview.
 
 ## Core Principle
 
@@ -16,14 +16,14 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | Version | `# v0.39.0` | `#header-version` with `# ` CSS prefix | `has #-prefixed version span` |
 | Models | `# models: ... · taste-1` | `#header-models` with `# ` CSS prefix | `has #-prefixed models span` |
 | CWD | `# ~/path` | `#header-cwd` with `# ` CSS prefix | `has #-prefixed CWD span` |
-| Token count | Not shown in CLI header | `#token-count` in metrics bar | — (CMD Lite addition) |
-| Model name | In models line | `#model-name` in metrics bar | — (CMD Lite addition) |
-| Permission mode | Not in header | `#perm-mode` in metrics bar | — (CMD Lite addition) |
+| Token count | Not shown in CLI header | `#token-count` in metrics bar | — (CommandCode+ addition) |
+| Model name | In models line | `#model-name` in metrics bar | — (CommandCode+ addition) |
+| Permission mode | Not in header | `#perm-mode` in metrics bar | — (CommandCode+ addition) |
 | Crosshairs | Not applicable (terminal) | 4 corners via `.crosshair` | `has crosshair decorations` |
 | CRT scan-line | Not applicable (terminal) | `body::after` overlay | `has CRT scan-line overlay` |
 | Grid background | Not applicable (terminal) | 20px grid via `background-image` | `has grid background` |
 
-### Action Bar (CMD Lite addition)
+### Action Bar (CommandCode+ addition)
 
 | Button | Icon | Action |
 |--------|------|--------|
@@ -65,7 +65,7 @@ The webview should render every visual element the CLI TUI renders, in the same 
 | TASTE toggle | `◻ TASTE` / `☑ TASTE` | `.tui-taste-toggle` interactive toggle | `has TASTE toggle` |
 | Execute button | Not in CLI | `#send-btn` with ❯ Execute | `has ❯ prefix on send button` |
 
-### Footer Bar (CMD Lite addition)
+### Footer Bar (CommandCode+ addition)
 
 | Item | Content |
 |------|---------|

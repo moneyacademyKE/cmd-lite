@@ -1,7 +1,7 @@
 {
   "packageManager": "pnpm@11.7.0",
-  "name": "cmd-lite",
-  "displayName": "CMD Lite",
+  "name": "commandcode-plus",
+  "displayName": "CommandCode+",
   "description": "A coding agent with taste. Wrap the Command Code (`cmd`) CLI as a native VS Code experience.",
   "version": "0.5.7",
   "publisher": "moneyacademyke",
@@ -74,6 +74,14 @@
           {
             "name": "learn",
             "description": "Learn taste from a repository"
+          },
+          {
+            "name": "design",
+            "description": "Design frontend UI/UX with modern aesthetics and glassmorphism"
+          },
+          {
+            "name": "fix",
+            "description": "Analyze and fix compilation errors and warnings in the workspace"
           }
         ]
       }
@@ -333,7 +341,12 @@
         "cmd-lite.allowShellTool": {
           "type": "boolean",
           "default": false,
-          "description": "Allow CMD Lite and its MCP terminal tool to execute arbitrary shell commands in the workspace. Keep disabled unless you explicitly trust the active agent/session."
+          "description": "Allow CommandCode+ and its MCP terminal tool to execute arbitrary shell commands in the workspace. Keep disabled unless you explicitly trust the active agent/session."
+        },
+        "cmd-lite.zeroDataRetention": {
+          "type": "boolean",
+          "default": false,
+          "description": "Zero Data Retention (ZDR) privacy toggle. When enabled, sets CMD_ZDR=1 to prevent session data from being retained or logged."
         }
       }
     },

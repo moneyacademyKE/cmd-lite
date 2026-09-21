@@ -1,6 +1,6 @@
-# Architectural Decision Record (ADR) Log: CMD Lite
+# Architectural Decision Record (ADR) Log: CommandCode+
 
-This document compiles the chronological history of key design choices and architectural decisions made for the **CMD Lite** VS Code extension wrapper. In accordance with Rich Hickey's Simplicity principles, we maintain this unified log of immutable design facts to document changes and prevent regressions.
+This document compiles the chronological history of key design choices and architectural decisions made for the **CommandCode+** VS Code extension wrapper. In accordance with Rich Hickey's Simplicity principles, we maintain this unified log of immutable design facts to document changes and prevent regressions.
 
 ---
 
@@ -8,7 +8,7 @@ This document compiles the chronological history of key design choices and archi
 
 ### ADR-001: Decoupled CLI Wrapper Core Architecture
 *   **Context**: Building a heavy editor extension that embeds LLM orchestration and session management inside the editor process complects state. This locks capabilities to one IDE and creates memory-bloated, unstable plugins.
-*   **Decision**: CMD Lite acts strictly as a lightweight, framework-free wrapper ("Thin Glass") around the Command Code (`cmd`) CLI. It relays workspace context (selection, diagnostics, git status) over Unix Domain Sockets (UDS) and projects rendering commands. All agent decisions, models, and session states are managed in the CLI or home directory JSON files.
+*   **Decision**: CommandCode+ acts strictly as a lightweight, framework-free wrapper ("Thin Glass") around the Command Code (`cmd`) CLI. It relays workspace context (selection, diagnostics, git status) over Unix Domain Sockets (UDS) and projects rendering commands. All agent decisions, models, and session states are managed in the CLI or home directory JSON files.
 
 ### ADR-002: Package Manager Standardization (pnpm)
 *   **Context**: Duplicate package copies in NPM/Bun waste disk space, and flat `node_modules` structures allow "phantom dependencies" (packages importing undeclared modules), compromising build safety.
@@ -55,10 +55,31 @@ This document compiles the chronological history of key design choices and archi
 
 ### ADR-010: Native Binary Precedence for CLI Resolution (v0.5.5)
 *   **Context**: Electron-derived editors such as Antigravity can crash when an interactive terminal launches stale package entrypoints like `globalStorage/.../cli/dist/index.mjs` through the editor helper process. This complects the editor runtime with CLI package internals.
-*   **Decision**: Treat precompiled `cmd` / `command-code` binaries as canonical. CMD Lite prefers configured native binaries or PATH binaries and only accepts local update artifacts that contain native executables (`command-code`, `cmd`, or platform `.exe` variants). Stale `dist/index.mjs` package entrypoints are ignored.
+*   **Decision**: Treat precompiled `cmd` / `command-code` binaries as canonical. CommandCode+ prefers configured native binaries or PATH binaries and only accepts local update artifacts that contain native executables (`command-code`, `cmd`, or platform `.exe` variants). Stale `dist/index.mjs` package entrypoints are ignored.
 *   **Consequence**: CLI updates are simpler and safer, but local registry packages must publish a native executable artifact rather than relying on Node package dependency installation.
 
 ### ADR-011: Bounded Agent Loops over Infinite Autonomy (v0.5.6)
 *   **Context**: Dogfood scripts such as `loop_infinite.clj` demonstrate high leverage from repeated observe-act-verify cycles, but unbounded loops can run away, repeatedly fail, or mutate more scope than intended.
-*   **Decision**: CMD Lite exposes a bounded loop command that requires a task, verification signal, maximum iteration count, retry limit, cancellation path, and explicit `LOOP_DONE` / `LOOP_CONTINUE` agent markers.
+*   **Decision**: CommandCode+ exposes a bounded loop command that requires a task, verification signal, maximum iteration count, retry limit, cancellation path, and explicit `LOOP_DONE` / `LOOP_CONTINUE` agent markers.
 *   **Consequence**: Users get repeatable agent progress without granting indefinite autonomy. Future scheduled loops must preserve the same terminal states and approval boundaries.
+
+### ADR-012: Strict Modularization and <500 LOC Constraint
+*   **Context**: Monolithic files like `extension.ts` (which grew to ~1138 LOC) and `webview/main.ts` complect routing, state, and UI presentation, violating "Simple Made Easy" principles and causing logic drift.
+*   **Decision**: Enforce a strict `<500 LOC` constraint across all repository files. `extension.ts` was decomposed into specialized handlers (`chatInput.ts`, `webviewActions.ts`, `registration.ts`, `integration.ts`). 
+*   **Consequence**: High cohesion, low coupling, and clearer boundaries between IPC lifecycle management and user command handling.
+
+### ADR-013: Zero Data Retention (ZDR) Privacy Protocol
+*   **Context**: Enterprises and privacy-conscious users require strict guarantees that conversation context, ASTs, and codebase prompts are never persisted or used for model training.
+*   **Decision**: Implement `cmd-lite.zeroDataRetention` setting that injects `CMD_ZDR=1` into subprocess execution environments across all CLI spawns. This decomplects privacy policy enforcement from local extension state.
+*   **Consequence**: The underlying CLI daemon suppresses telemetry, prompt logging, and disk-persisted conversation memory while keeping the editor interface stateless.
+
+### ADR-014: Cross-Platform Windows Executable Resolution (`cmdc`)
+*   **Context**: On Windows (`win32`), `cmd` unconditionally conflicts with the native Windows system command interpreter `cmd.exe`. Launching `cmd` spawns the Windows shell instead of Command Code.
+*   **Decision**: Introduce platform-aware binary resolution in `src/cli/resolve.ts`. If the active platform is `win32`, the default CLI executable name dynamically falls back to `cmdc` (or `cmdc.exe`).
+*   **Consequence**: Windows users experience seamless out-of-the-box execution without collision or manual setting configuration, preserving standard `cmd` naming on macOS and Linux.
+
+### ADR-015: First-Class `/design` and `/fix` Workspace Diagnostics Automation
+*   **Context**: Developers frequently need either frontend UI/UX elevation or fast compilation diagnostics remediation. Forcing manual prompt boilerplate complects cognitive load.
+*   **Decision**: Provide unified `/design` and `/fix` slash commands registered across both the VS Code Chat Participant (`@cmd`) and the Thin Glass Webview. `/fix` automatically queries VS Code diagnostics, filters out build/dependency noise, caps at 30 critical items, and formats structured error locations.
+*   **Consequence**: Instant one-click diagnostic resolution and aesthetic refinement with full autocomplete parity.
+

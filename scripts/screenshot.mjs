@@ -67,7 +67,7 @@ try {
   }
 
   console.log('\nScreenshots captured! Compare:');
-  console.log('  scripts/webview-screenshot.png (CMD Lite)');
+  console.log('  scripts/webview-screenshot.png (CommandCode+)');
   console.log('  scripts/cli-screenshot.png (cmd CLI)');
   console.log('  scripts/visual-comparison.png (side-by-side)');
 

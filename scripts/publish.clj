@@ -46,7 +46,7 @@
         version (parse-version)
         vsix-file (str "cmd-lite-" version ".vsix")]
     (println "=========================================================")
-    (println "🚀 CMD Lite VS Code Extension Publisher Pre-flight Checks")
+    (println "🚀 CommandCode+ VS Code Extension Publisher Pre-flight Checks")
     (println "=========================================================")
 
     ;; 1. Check Git Status

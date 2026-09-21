@@ -146,7 +146,7 @@ for (const [name, cli, webview, notes] of features) {
 
 console.log('\n✓ Visual parity complete!');
 console.log('\nScreenshots:');
-console.log('  scripts/webview-render.png  - CMD Lite webview render');
+console.log('  scripts/webview-render.png  - CommandCode+ webview render');
 console.log('  scripts/webview-screenshot.png  - Full webview');
 console.log('  scripts/cli-screenshot.png  - CLI reference');
 
