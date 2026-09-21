@@ -83,3 +83,7 @@ This document compiles the chronological history of key design choices and archi
 *   **Decision**: Provide unified `/design` and `/fix` slash commands registered across both the VS Code Chat Participant (`@cmd`) and the Thin Glass Webview. `/fix` automatically queries VS Code diagnostics, filters out build/dependency noise, caps at 30 critical items, and formats structured error locations.
 *   **Consequence**: Instant one-click diagnostic resolution and aesthetic refinement with full autocomplete parity.
 
+### ADR-016: Display Rebrand CMD Lite → CommandCode+ (v0.5.7)
+*   **Context**: The extension's user-facing brand name "CMD Lite" was being rebranded to "CommandCode+" to better reflect product positioning. The extension's technical identity (`cmd-lite.*` command IDs, view IDs, configuration keys) is deeply wired into the VS Code API surface, user `settings.json` files, and keybinding configurations.
+*   **Decision**: Decomplect brand identity from technical identity. Only user-facing display text (displayName, command titles, descriptions, error messages, documentation) was changed. All VS Code API identifiers (`cmd-lite.*`) were preserved. Upstream CLI references (`Command Code`, `.commandcode/`, `commandcode.ai`) were left untouched as they are properties of the upstream product.
+*   **Consequence**: Zero breaking changes for existing users. Settings, keybindings, and workspace configs continue to work without migration. The `"name"` field in `package.json` changed from `cmd-lite` to `commandcode-plus` for marketplace identity.
